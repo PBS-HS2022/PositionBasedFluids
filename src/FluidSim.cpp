@@ -16,6 +16,9 @@ void FluidSim::solvePoisson() {
 			for (int x = 1; x < m_res_x - 1; ++x) {
 				double b = -p_divergence->x()(x, y) / m_dt * rho; // right-hand
 				// TODO: update the pressure values
+				p(x, y) = (dx2 * b +
+					p(x - 1, y) + p(x + 1, y) +
+					p(x, y - 1) + p(x, y + 1)) / 4.0;
 				
 			}
 		}
@@ -26,9 +29,12 @@ void FluidSim::solvePoisson() {
 			for (int x = 1; x < m_res_x - 1; ++x) {
 				double b = -p_divergence->x()(x, y) / m_dt * rho; // right-hand
 				// TODO: compute the cell residual
-				double cellResidual = 0.0;
+				double cellResidual = b - (4 * p(x, y) -
+					p(x - 1, y) - p(x + 1, y) -
+					p(x, y - 1) - p(x, y + 1)) / dx2;
 
 				residual += cellResidual * cellResidual;
+
 			}
 		}
 
@@ -52,13 +58,13 @@ void FluidSim::correctVelocity() {
 	for (int y = 1; y < m_res_y - 1; ++y)
 		for (int x = 1; x < m_res_x; ++x)
 			// TODO: update u
-			u(x, y) = u(x, y);
+			u(x, y) = u(x, y) - (m_dt * (p(x, y) - p(x-1, y)) * m_idx);
 
 	// Same for velocity v_{i+1/2}.
 	for (int y = 1; y < m_res_y; ++y)
 		for (int x = 1; x < m_res_x - 1; ++x)
 			// TODO: update v
-			v(x, y) = v(x, y);
+			v(x, y) = v(x, y) - (m_dt * (p(x, y) - p(x, y-1)) * m_idx);
 }
 
 void FluidSim::advectValues() {
@@ -88,12 +94,12 @@ void FluidSim::advectDensitySL(const Array2d& u, const Array2d& v) {
 	for (int y = 1; y < m_res_y - 1; ++y) {
 		for (int x = 1; x < m_res_x - 1; ++x) {
 			// TODO: Compute the velocity
-			double last_x_velocity = 0.;
-			double last_y_velocity = 0.;
+			double last_x_velocity = (u(x, y) + u(x + 1, y)) / 2;
+			double last_y_velocity = (v(x, y) + v(x, y + 1)) / 2;
 
 			// TODO: Find the last position of the particle (in grid coordinates)
-			double last_x = 0.;
-			double last_y = 0.;
+			double last_x = x - m_dt * m_idx * last_x_velocity;
+			double last_y = y - m_dt * m_idx * last_y_velocity;
 
 			// Make sure the coordinates are inside the boundaries
 			// Densities are known between 1 and res-2
@@ -113,7 +119,11 @@ void FluidSim::advectDensitySL(const Array2d& u, const Array2d& v) {
 			double y_weight = last_y - y_low;
 
 			// TODO: Bilinear interpolation
-			d_tmp(x, y) = d(x, y);
+			d_tmp(x, y) = x_weight * y_weight * d(x_high, y_high) +
+				(1 - x_weight) * y_weight * d(x_low, y_high) +
+				x_weight * (1 - y_weight) * d(x_high, y_low) +
+				(1 - x_weight) * (1 - y_weight) * d(x_low, y_low);
+
 		}
 	}
 
@@ -132,12 +142,12 @@ void FluidSim::advectVelocitySL(const Array2d& u, const Array2d& v) {
 	for (int y = 1; y < m_res_y - 1; ++y) {
 		for (int x = 1; x < m_res_x; ++x) {
 			// TODO: Compute the velocity
-			double last_x_velocity = 0.;
-			double last_y_velocity = 0.;
+			double last_x_velocity = u(x, y);
+			double last_y_velocity = (v(x, y) + v(x - 1, y) + v(x - 1, y + 1) + v(x, y + 1)) / 4;
 
 			// TODO: Find the last position of the particle (in grid coordinates)
-			double last_x = 0.;
-			double last_y = 0.;
+			double last_x = x - m_dt * m_idx * last_x_velocity;
+			double last_y = y - m_dt * m_idx * last_y_velocity;
 
 			// Make sure the coordinates are inside the boundaries
 			// Being conservative, one can say that the velocities are known between 1.5 and res-2.5
@@ -158,7 +168,11 @@ void FluidSim::advectVelocitySL(const Array2d& u, const Array2d& v) {
 			double y_weight = last_y - y_low;
 
 			// TODO: Bilinear interpolation
-			u_tmp(x, y) = u(x, y);
+			u_tmp(x, y) = x_weight * y_weight * u_in(x_high, y_high) +
+				(1 - x_weight) * y_weight * u_in(x_low, y_high) +
+				x_weight * (1 - y_weight) * u_in(x_high, y_low) +
+				(1 - x_weight) * (1 - y_weight) * u_in(x_low, y_low);
+
 		}
 	}
 
@@ -166,12 +180,12 @@ void FluidSim::advectVelocitySL(const Array2d& u, const Array2d& v) {
 	for (int y = 1; y < m_res_y; ++y) {
 		for (int x = 1; x < m_res_x - 1; ++x) {
 			// TODO: Compute the velocity
-			double last_x_velocity = 0.;
-			double last_y_velocity = 0.;
+			double last_x_velocity = (u(x, y) + u(x + 1, y) + u(x + 1, y - 1) + u(x, y - 1)) / 4;
+			double last_y_velocity = v(x, y);
 
 			// TODO: Find the last position of the particle (in grid coordinates)
-			double last_x = 0.;
-			double last_y = 0.;
+			double last_x = x - m_dt * m_idx * last_x_velocity;
+			double last_y = y - m_dt * m_idx * last_y_velocity;
 
 			// Make sure the coordinates are inside the boundaries
 			// Being conservative, one can say that the velocities are known between 1.5 and res-2.5
@@ -192,7 +206,10 @@ void FluidSim::advectVelocitySL(const Array2d& u, const Array2d& v) {
 			double y_weight = last_y - y_low;
 
 			// TODO: Bilinear interpolation
-			v_tmp(x, y) = v(x, y);
+			v_tmp(x, y) = x_weight * y_weight * v_in(x_high, y_high) +
+				(1 - x_weight) * y_weight * v_in(x_low, y_high) +
+				x_weight * (1 - y_weight) * v_in(x_high, y_low) +
+				(1 - x_weight) * (1 - y_weight) * v_in(x_low, y_low);
 		}
 	}
 
@@ -220,17 +237,17 @@ void FluidSim::MacCormackUpdate(const Array2d& d, const Array2d& d_forward, cons
 	for (int y = 1; y < m_res_y - 1; ++y)
 		for (int x = 1; x < m_res_x - 1; ++x)
 			// TODO: update d
-			d_tmp(x, y) = d_tmp(x, y);
+			d_tmp(x, y) += 0.5 * (d(x, y) - d_backward(x, y));
 
 	for (int y = 1; y < m_res_y - 1; ++y)
 		for (int x = 1; x < m_res_x; ++x)
 			// TODO: update u
-			u_tmp(x, y) = u_tmp(x, y);
+			u_tmp(x, y) += 0.5 * (u(x, y) - u_backward(x, y));
 		
 	for (int y = 1; y < m_res_y; ++y)
 		for (int x = 1; x < m_res_x - 1; ++x)
 			// TODO: update v
-			v_tmp(x, y) = v_tmp(x, y);
+			v_tmp(x, y) += 0.5 * (v(x, y) - v_backward(x, y));
 	
 	p_density->x() = d_tmp;
 	p_velocity->x() = u_tmp;
@@ -244,11 +261,11 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 	// Clamp density
 	for (int y = 1; y < m_res_y - 1; ++y) {
 		for (int x = 1; x < m_res_x - 1; ++x) {
-			double last_x_velocity = 0.;
-			double last_y_velocity = 0.;
+			double last_x_velocity = (u(x, y) + u(x + 1, y)) / 2;
+			double last_y_velocity = (v(x, y) + v(x, y + 1)) / 2;
 
-			double last_x = 0.;
-			double last_y = 0.;
+			double last_x = x - m_dt * m_idx * last_x_velocity;
+			double last_y = y - m_dt * m_idx * last_y_velocity;
 
 			// Make sure the coordinates are inside the boundaries
 			// Densities are known between 1 and res-2
@@ -277,7 +294,8 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 			d_max = max(d(x_high, y_high), d_max);
 
 			// TODO: clamp d
-			d_tmp(x, y) = d_tmp(x, y);
+			if (d_tmp(x, y) < d_min || d_tmp(x, y) > d_max)
+				d_tmp(x, y) = d_forward(x, y);
 				
 		}
 	}
@@ -286,8 +304,8 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 	for (int y = 1; y < m_res_y - 1; ++y) {
 		for (int x = 1; x < m_res_x; ++x) {
 			// TODO: Compute the velocity
-			double last_x_velocity = 0.;
-			double last_y_velocity = 0.;
+			double last_x_velocity = u(x, y);
+			double last_y_velocity = (v(x, y) + v(x - 1, y) + v(x - 1, y + 1) + v(x, y + 1)) / 4;
 
 			// TODO: Find the last position of the particle (in grid coordinates)
 			double last_x = x - m_dt * m_idx * last_x_velocity;
@@ -321,7 +339,9 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 			u_max = max(u(x_high, y_high), u_max);
 
 			// TODO: clamp u
-			u_tmp(x, y) = u_tmp(x, y);
+			if (u_tmp(x, y) < u_min || u_tmp(x, y) > u_max)
+				u_tmp(x, y) = u_forward(x, y);
+
 		}
 	}
 
@@ -329,12 +349,12 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 	for (int y = 1; y < m_res_y; ++y) {
 		for (int x = 1; x < m_res_x - 1; ++x) {
 			// TODO: Compute the velocity
-			double last_x_velocity = 0.;
-			double last_y_velocity = 0.;
+			double last_x_velocity = (u(x, y) + u(x + 1, y) + u(x + 1, y - 1) + u(x, y - 1)) / 4;
+			double last_y_velocity = v(x, y);
 
 			// TODO: Find the last position of the particle (in grid coordinates)
-			double last_x = 0.;
-			double last_y = 0.;
+			double last_x = x - m_dt * m_idx * last_x_velocity;
+			double last_y = y - m_dt * m_idx * last_y_velocity;
 
 			// Make sure the coordinates are inside the boundaries
 			// Being conservative, one can say that the velocities are known between 1.5 and res-2.5
@@ -364,7 +384,9 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 			v_max = max(v(x_high, y_high), v_max);
 
 			// TODO: clamp v
-			v_tmp(x, y) = v_tmp(x, y);
+			if (v_tmp(x, y) < v_min || v_tmp(x, y) > v_max)
+				v_tmp(x, y) = v_forward(x, y);
+
 		}
 	}
 	
