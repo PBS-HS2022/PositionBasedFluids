@@ -1,10 +1,11 @@
 #include "FluidSim.h"
 #include <cuda_runtime.h>
 
-#define HANDLE_CUDA_CALL(cuda_func) \
+#define HANDLE_CUDA_CALL(cuda_func, err) \
 do {\
-	if(cuda_func != cudaSuccess) { \
-		cerr << "Cuda error in call for: ##cuda_func" << endl; \
+	cudaError_t err_code;\
+	if((err_code = cuda_func) != cudaSuccess) { \
+		cerr << "Cuda error in call: " << err  << " with error code: " << err_code << endl; \
 		exit(1); \
 	}\
 } while(0)
@@ -121,22 +122,22 @@ void FluidSim::correctVelocity() {
 	int size_v = v.size(0) * v.size(1) * sizeof(double);
 
 	// Try to allocate space for p, u, and v on GPU
-	HANDLE_CUDA_CALL(cudaMalloc((void**)&cu_p, size_p));
-	HANDLE_CUDA_CALL(cudaMalloc((void**)&cu_u, size_u));
-	HANDLE_CUDA_CALL(cudaMalloc((void**)&cu_v, size_v));
+	HANDLE_CUDA_CALL(cudaMalloc((void**)&cu_p, size_p), "Malloc p");
+	HANDLE_CUDA_CALL(cudaMalloc((void**)&cu_u, size_u), "Malloc u");
+	HANDLE_CUDA_CALL(cudaMalloc((void**)&cu_v, size_v), "Malloc v");
 
 	// Copy current array data from host to device
-	HANDLE_CUDA_CALL(cudaMemcpy(cu_p, p_addr, size_p, cudaMemcpyHostToDevice));
-	HANDLE_CUDA_CALL(cudaMemcpy(cu_u, u_addr, size_u, cudaMemcpyHostToDevice));
-	HANDLE_CUDA_CALL(cudaMemcpy(cu_v, v_addr, size_v, cudaMemcpyHostToDevice));
+	HANDLE_CUDA_CALL(cudaMemcpy(cu_p, p_addr, size_p, cudaMemcpyHostToDevice), "Cpy p to device");
+	HANDLE_CUDA_CALL(cudaMemcpy(cu_u, u_addr, size_u, cudaMemcpyHostToDevice), "Cpy u to device");
+	HANDLE_CUDA_CALL(cudaMemcpy(cu_v, v_addr, size_v, cudaMemcpyHostToDevice), "Cpy v to device");
 
 	// Call kernels
 	correctVelocity_kernel_u<<<nBlks_u, threadsPerBlk_u>>>(cu_p, cu_u, m_dt_idx, warpsPerBlock_u, length_u);
 	correctVelocity_kernel_v<<<nBlks_v, threadsPerBlk_v>>>(cu_p, cu_v, m_dt_idx, warpsPerBlock_v, length_v);
 
 	// Copy results back from the device to the host (p isn't modified so no need)
-	HANDLE_CUDA_CALL(cudaMemcpy(u_addr, cu_u, size_u, cudaMemcpyDeviceToHost));
-	HANDLE_CUDA_CALL(cudaMemcpy(v_addr, cu_v, size_v, cudaMemcpyDeviceToHost));
+	HANDLE_CUDA_CALL(cudaMemcpy(u_addr, cu_u, size_u, cudaMemcpyDeviceToHost), "Cpy u to Host");
+	HANDLE_CUDA_CALL(cudaMemcpy(v_addr, cu_v, size_v, cudaMemcpyDeviceToHost), "Cpy v to Host");
 
 	// Free CUDA variables
 	cudaFree(cu_p);
