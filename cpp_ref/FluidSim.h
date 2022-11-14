@@ -2,7 +2,6 @@
 #include "Simulation.h"
 #include "Grid2.h"
 #include "MACGrid2.h"
-#include <cuda_runtime.h>
 
 using namespace std;
 
@@ -38,11 +37,6 @@ public:
 		p_velocity = new MACGrid2(m_res_x, m_res_y, m_dx);
 		p_force = new MACGrid2(m_res_x, m_res_y, m_dx);
 
-		// Fetch Cuda device properties
-		if(cudaGetDeviceProperties(&prop, 0) != cudaSuccess) {
-			cerr << "Unable to find CUDA device" << endl;
-			exit(1);
-		} 
 		
 		reset();
 	}
@@ -312,7 +306,4 @@ private:
 	Eigen::MatrixXd m_renderC; // face (or vertex) colors for rendering
 
 	//shared_ptr<ParticlesData> m_pParticleData;
-
-	// Cuda device properties
-	cudaDeviceProp prop;
 };
