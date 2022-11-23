@@ -395,13 +395,19 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 	p_velocity->y() = v_tmp;
 }
 
+// +++++++++++++++++++++++++++++++++++++++++++++++++
+// ++++++++++++++ SPH FUNCTIONS ++++++++++++++++++++
+// +++++++++++++++++++++++++++++++++++++++++++++++++
 
+// =================================================
+// =========== Initialize SPH Particles ============
+// =================================================
 void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax) {
 	// for (float y = 16.0f; y < m_res_y - 16.0f * 2.0f; y += 16.0f) {
 	// 	for (float x = m_res_x / 4; x <= m_res_x / 2; x += 16.0f) {
 	for (int y = (int)(ymin * m_res_y); y < (int)(ymax * m_res_y); y++) {
 		for (int x = (int)(xmin * m_res_x); x < (int)(xmax * m_res_x); x++) {
-			if (particles.size() < 25000) {
+			if (particles.size() < m_NUM_PARTICLES) {
 				float jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
 				Particle newParticle(x + jitter, y);
                 particles.push_back(newParticle);
@@ -414,9 +420,9 @@ void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax) {
 	}
 }
 
-
-//// SPH FUNCTIONS
-
+// =================================================
+// ==== Compute Densities and Pressures for SPH ====
+// =================================================
 void FluidSim::computePressureSPH() {
 	float h2 = m_h * m_h;
 	for (auto &pi : particles) {
@@ -439,6 +445,9 @@ void FluidSim::computePressureSPH() {
 	}
 }
 
+// =================================================
+// ============ Compute forces for SPH =============
+// =================================================
 void FluidSim::computeForcesSPH() {
 	for (auto &pi : particles) {
 		Eigen::Vector2d f_p(0.0f, 0.0f);
@@ -454,53 +463,69 @@ void FluidSim::computeForcesSPH() {
 
 			if (r < m_h) {
 				// Pressure forces
-				f_p += -r_ij.normalized() * m_mass * (pi.p + pj.p) / (2.0f * pi.rho) * m_SPIKY_GRAD * pow(m_h - r, 3.0f);
+				f_p += -r_ij.normalized() * m_mass * (pi.p + pj.p) / (2.0f * pj.rho) * m_SPIKY_GRAD * pow(m_h - r, 3.0f);
 				// f_p += -r_ij.normalized() * m_mass * ((pi.p / pow(pi.rho,2)) + (pj.p / pow(pj.rho,2))) * m_SPIKY_GRAD * pow(m_h - r, 3.0f);
 
-				//Viscosity forces
+				// Viscosity forces
 				f_v += m_visc_cons * m_mass * (pj.v - pi.v) / pj.rho * m_VISC_LAP * (m_h - r);
 			}			
 		}
 
+		// Gravitational force
 		Eigen::Vector2d f_g = pi.rho * m_G;
 
 		// cout << "Time: " << m_time << "density: " << pi.rho << " pressure: " << f_p << " viscosity:" << f_v << " gravity: " << f_g << endl;
+		
+		// Add up all the forces
 		pi.f = f_p + f_v + f_g;
 	}
 }
 
+// =================================================
+// ===== SPH Integration and boundary checks =======
+// =================================================
 void FluidSim::integrateSPH() {
 	// Array2d d_tmp(p_density->x());
 	p_density->reset();
 	for (auto &p : particles) {
-		// forward Euler
+		// Euler step
 		p.v += m_dt * p.f / p.rho;
 		p.x += m_dt * p.v;
 
 		// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
 		// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
 
-		// boundary checks
-		if (p.x(0) - m_h < 0.0f) {
+		// =================================================
+		// ================ boundary checks ================
+		// =================================================
+		int x_coord = (int)p.x.x();
+		int y_coord = (int)p.x.y();
+
+		// Left
+		if (x_coord <= 0) {
 			p.v(0) *= -0.5f;
 			p.x(0) = m_h;
 		}
 
-		if (p.x(0) + m_h > m_res_x) {
+		// Right
+		if (x_coord >= m_res_x) {
 			p.v(0) *= -0.5f;
 			p.x(0) = m_res_x - m_h;
 		}
 
-		if (p.x(1) - m_h < 0.0f) {
+		// Bottom
+		if (y_coord <= 0) {
 			p.v(1) *= -0.5f;
 			p.x(1) = m_h;
 		}
 
-		if (p.x(1) + m_h > m_res_y) {
+		// Top
+		if (y_coord >= m_res_y) {
 			p.v(1) *= -0.5f;
-			p.x(1) = m_res_x - m_h;
+			p.x(1) = m_res_y - m_h;
 		}
 
+		// Update grid positions
 		p_density->set_m_x((int)p.x.x(), (int)p.x.y());
 	}
 	// p_density->x() = d_tmp;

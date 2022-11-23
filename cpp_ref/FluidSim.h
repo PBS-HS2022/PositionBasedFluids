@@ -30,7 +30,7 @@ public:
 		m_idx = m_res_x / m_size_x;
 		m_size_y = m_dx * m_res_y;
 		m_dt = 0.005 * sqrt((m_res_x + m_res_y) * 0.5);
-		// m_dt = 0.005;
+		// m_dt = 0.01;
 		m_acc = 1e-5;
 		m_iter = 1000;
 		m_field = 0;
@@ -39,10 +39,12 @@ public:
 		m_windOn = false;
 		m_macOn = true;
 
-		// SPH variables
+		// ++++++++++ SPH variables +++++++++++++++++++++++
+		m_NUM_PARTICLES = 2500;
+
 		m_mass = 2.5f;
-		m_k = 2.0f;
-		m_h = 5.0f;
+		m_k = 200.0f;
+		m_h = 2.0f;
 		m_rho0 = 0.3f;
 		m_visc_cons = 0.2f;
 
@@ -53,6 +55,8 @@ public:
 		// m_VISC_LAP = 45.0f / (M_PI * pow(m_h, 6.0f));
 		m_VISC_LAP = 40.f / (M_PI * pow(m_h, 5.f));
 		m_G = Eigen::Vector2d(0.f, -9.81f);
+
+		// ++++++++++ SPH variables +++++++++++++++++++++++
 
 		p_density = new Grid2(m_res_x, m_res_y, m_dx);
 		p_pressure = new Grid2(m_res_x, m_res_y, m_dx);
@@ -354,6 +358,7 @@ private:
 	float m_rho0;
 	float m_visc_cons;
 
+	int m_NUM_PARTICLES;
 	float m_POLY6;
 	float m_SPIKY_GRAD;
 	float m_VISC_LAP;
