@@ -42,6 +42,10 @@ public:
 		// ++++++++++ SPH variables +++++++++++++++++++++++
 		m_NUM_PARTICLES = 2500;
 
+		m_eta = 0.01f; // 1%
+		m_min_iterations = 3; // idfk
+		m_rho_err = std::vector<float>(m_NUM_PARTICLES);
+
 		m_mass = 2.5f;
 		m_k = 200.0f;
 		m_h = 2.0f;
@@ -105,6 +109,39 @@ public:
 	}
 
 	virtual bool advance() override {
+		// apply source in density field
+		// change here to modify source for fluid
+		// p_density->applySource(0.45, 0.55, 0.7, 0.95);
+
+		// // add in new forces
+		// addBuoyancy();
+		// addGravity();
+		// // if (m_windOn)
+		// // 	addWind();
+
+		// addForce();
+
+		// // remove divergence
+		// solvePressure();
+
+		// // advect everything
+		// advectValues();
+
+		// // reset forces
+		// p_force->reset();
+
+		computePressurePCISPH();
+		computeForcesSPH();
+		integrateSPH();
+
+		// advance m_time
+		m_time += m_dt;
+		m_step++;
+
+		return false;
+	}
+
+	bool predict() {
 		// apply source in density field
 		// change here to modify source for fluid
 		// p_density->applySource(0.45, 0.55, 0.7, 0.95);
@@ -308,6 +345,7 @@ public:
 
 #pragma region SPH
 	void initSPH(double xmin, double xmax, double ymin, double ymax);
+	void computePressurePCISPH();
 	void integrateSPH();
 	void computePressureSPH();
 	void computeForcesSPH();
@@ -352,6 +390,9 @@ private:
 	bool m_windOn;
 	bool m_macOn;
 
+	float m_eta; // Density converging threshold for Incompressibility
+	int m_min_iterations; // Number of iterations before considering a convergeance
+	std::vector<float> m_rho_err; // For density prediction
 	float m_mass;
 	float m_k;
 	float m_h;
