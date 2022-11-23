@@ -426,6 +426,7 @@ void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax) {
 void FluidSim::computePressurePCISPH() {
 	m_rho_err.clear();
 	int iter(0);
+	float avg_rho_err(1.0f);
 	float h2 = m_h * m_h;
 
 	// Loop until convergeance
@@ -458,7 +459,9 @@ void FluidSim::computePressurePCISPH() {
 			pi.p += ptild;//std::max(m_k * (pi.rho - m_rho0), 0.0f);
 			// pi.p = m_k * (pi.rho - m_rho0);
 		}
-	} while(m_rho_err.front() > m_eta || iter++ < m_min_iterations);
+		// Compute the current average rho_err
+		avg_rho_err = std::accumulate(m_rho_err.begin(), m_rho_err.end(), 0.0) / m_rho_err.size();
+	} while(avg_rho_err > m_eta || iter++ < m_min_iterations);
 }
 
 // =================================================
