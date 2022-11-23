@@ -452,7 +452,7 @@ void FluidSim::computePressurePCISPH() {
 			// Compute Beta factor for density error affect
 			float beta = (m_dt * m_dt) * (m_mass * m_mass) * (2 / (m_rho0 * m_rho0));
 			//TODO: compute delta as -1/(beta * (-sum(nablaWij) dot sum(nablaWij) - sum(nablaWij dot nablaWij)))
-			float delta = -1/(beta);
+			float delta = -1/(beta * (-m_SPIKY_GRAD * m_SPIKY_GRAD - m_visc_cons));
 			//pi.p = std::max(m_k * (((float)pow(pi.rho, 7) / (float)pow(m_rho0, 7)) - 1), 0.0f);
 			float ptild = delta * m_rho_err[i++];
 			pi.p += ptild;//std::max(m_k * (pi.rho - m_rho0), 0.0f);
