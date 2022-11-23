@@ -394,3 +394,114 @@ void FluidSim::MacCormackClamp(const Array2d& d, const Array2d& d_forward, const
 	p_velocity->x() = u_tmp;
 	p_velocity->y() = v_tmp;
 }
+
+
+void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax) {
+	// for (float y = 16.0f; y < m_res_y - 16.0f * 2.0f; y += 16.0f) {
+	// 	for (float x = m_res_x / 4; x <= m_res_x / 2; x += 16.0f) {
+	for (int y = (int)(ymin * m_res_y); y < (int)(ymax * m_res_y); y++) {
+		for (int x = (int)(xmin * m_res_x); x < (int)(xmax * m_res_x); x++) {
+			if (particles.size() < 25000) {
+				float jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+				Particle newParticle(x + jitter, y);
+                particles.push_back(newParticle);
+				p_density->set_m_x(newParticle.x.x(), newParticle.x.y());
+			}
+			else {
+				return;
+			}
+		}
+	}
+}
+
+
+//// SPH FUNCTIONS
+
+void FluidSim::computePressureSPH() {
+	float h2 = m_h * m_h;
+	for (auto &pi : particles) {
+		pi.rho = 0.0f;
+
+		for (auto &pj : particles) {
+			Eigen::Vector2d r_ij = pj.x - pi.x;
+			float r2 = r_ij.squaredNorm();
+
+			if (r2 < h2) {
+				pi.rho += m_mass * m_POLY6 * pow(h2 - r2, 3.0f);
+			}
+		}
+
+		// pi.rho *= 1000.0f;
+
+		//pi.p = std::max(m_k * (((float)pow(pi.rho, 7) / (float)pow(m_rho0, 7)) - 1), 0.0f);
+		pi.p = std::max(m_k * (pi.rho - m_rho0), 0.0f);
+		// pi.p = m_k * (pi.rho - m_rho0);
+	}
+}
+
+void FluidSim::computeForcesSPH() {
+	for (auto &pi : particles) {
+		Eigen::Vector2d f_p(0.0f, 0.0f);
+		Eigen::Vector2d f_v(0.0f, 0.0f);
+
+		for (auto &pj : particles) {
+			if (&pi == &pj) {
+				continue;
+			}
+
+			Eigen::Vector2d r_ij = pj.x - pi.x;
+			float r = r_ij.norm();
+
+			if (r < m_h) {
+				// Pressure forces
+				f_p += -r_ij.normalized() * m_mass * (pi.p + pj.p) / (2.0f * pi.rho) * m_SPIKY_GRAD * pow(m_h - r, 3.0f);
+				// f_p += -r_ij.normalized() * m_mass * ((pi.p / pow(pi.rho,2)) + (pj.p / pow(pj.rho,2))) * m_SPIKY_GRAD * pow(m_h - r, 3.0f);
+
+				//Viscosity forces
+				f_v += m_visc_cons * m_mass * (pj.v - pi.v) / pj.rho * m_VISC_LAP * (m_h - r);
+			}			
+		}
+
+		Eigen::Vector2d f_g = pi.rho * m_G;
+
+		// cout << "Time: " << m_time << "density: " << pi.rho << " pressure: " << f_p << " viscosity:" << f_v << " gravity: " << f_g << endl;
+		pi.f = f_p + f_v + f_g;
+	}
+}
+
+void FluidSim::integrateSPH() {
+	// Array2d d_tmp(p_density->x());
+	p_density->reset();
+	for (auto &p : particles) {
+		// forward Euler
+		p.v += m_dt * p.f / p.rho;
+		p.x += m_dt * p.v;
+
+		// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
+		// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
+
+		// boundary checks
+		if (p.x(0) - m_h < 0.0f) {
+			p.v(0) *= -0.5f;
+			p.x(0) = m_h;
+		}
+
+		if (p.x(0) + m_h > m_res_x) {
+			p.v(0) *= -0.5f;
+			p.x(0) = m_res_x - m_h;
+		}
+
+		if (p.x(1) - m_h < 0.0f) {
+			p.v(1) *= -0.5f;
+			p.x(1) = m_h;
+		}
+
+		if (p.x(1) + m_h > m_res_y) {
+			p.v(1) *= -0.5f;
+			p.x(1) = m_res_x - m_h;
+		}
+
+		p_density->set_m_x((int)p.x.x(), (int)p.x.y());
+	}
+	// p_density->x() = d_tmp;
+}

@@ -5,6 +5,16 @@
 
 using namespace std;
 
+// Struct for water particles
+// Set initial position, velocity, force, density, pressure
+struct Particle {
+	Particle(float _x, float _y) 
+		: x(_x, _y), v(0.0f,0.0f), f(0.0f, 0.0f), rho(0), p(0.0f) {}
+	
+	Eigen::Vector2d x, v, f;
+	float rho, p;
+};
+
 /*
  * Simulation of a simple smoke plume rising.
  */
@@ -20,6 +30,7 @@ public:
 		m_idx = m_res_x / m_size_x;
 		m_size_y = m_dx * m_res_y;
 		m_dt = 0.005 * sqrt((m_res_x + m_res_y) * 0.5);
+		// m_dt = 0.005;
 		m_acc = 1e-5;
 		m_iter = 1000;
 		m_field = 0;
@@ -27,6 +38,21 @@ public:
 		m_vScale = 20;
 		m_windOn = false;
 		m_macOn = true;
+
+		// SPH variables
+		m_mass = 2.5f;
+		m_k = 2.0f;
+		m_h = 5.0f;
+		m_rho0 = 0.3f;
+		m_visc_cons = 0.2f;
+
+		// m_POLY6 = 315.0f / (64.0f * M_PI * pow(m_h, 9.0f));
+		m_POLY6 = 4.f / (M_PI * pow(m_h, 8.f));
+		// m_SPIKY_GRAD = 45.0f / (M_PI * pow(m_h, 6.0f));
+		m_SPIKY_GRAD = -10.f / (M_PI * pow(m_h, 5.f));
+		// m_VISC_LAP = 45.0f / (M_PI * pow(m_h, 6.0f));
+		m_VISC_LAP = 40.f / (M_PI * pow(m_h, 5.f));
+		m_G = Eigen::Vector2d(0.f, -9.81f);
 
 		p_density = new Grid2(m_res_x, m_res_y, m_dx);
 		p_pressure = new Grid2(m_res_x, m_res_y, m_dx);
@@ -37,57 +63,68 @@ public:
 		p_velocity = new MACGrid2(m_res_x, m_res_y, m_dx);
 		p_force = new MACGrid2(m_res_x, m_res_y, m_dx);
 
-		
+		initSPH(0.45, 0.55, 0.7, 0.95);
+
 		reset();
 	}
 
 	virtual void resetMembers() override {
 		p_density->reset();
-		p_density->applySource(0.45, 0.55, 0.1, 0.15);
-		p_pressure->reset();
-		p_divergence->reset();
-		p_velocity->reset();
-		p_force->reset();
+		particles.clear();
+		initSPH(0.25, 0.75, 0.7, 0.95);
+		
+		// p_density->applySource(0.45, 0.55, 0.1, 0.15);
+		// p_density->applySource(0.45, 0.55, 0.7, 0.95);
+		// p_pressure->reset();
+		// p_divergence->reset();
+		// p_velocity->reset();
+		// p_force->reset();
 	}
 
 	virtual void updateRenderGeometry() override {
 		if (m_field == 0) {
 			p_density->getColors(m_renderC);
 		}
-		else if (m_field == 1) {
-			p_pressure->getColors(m_renderC, true);
-		}
-		else if (m_field == 2) {
-			p_divergence->getColors(m_renderC, true);
-		}
-		else if (m_field == 3) {
-			p_vorticity->getColors(m_renderC, true);
-		}
+		// else if (m_field == 1) {
+		// 	p_pressure->getColors(m_renderC, true);
+		// }
+		// else if (m_field == 2) {
+		// 	p_divergence->getColors(m_renderC, true);
+		// }
+		// else if (m_field == 3) {
+		// 	p_vorticity->getColors(m_renderC, true);
+		// }
 		
-		if (m_velocityOn) {
-			p_velocity->updateEdges(m_vScale);
-		}
+		// if (m_velocityOn) {
+		// 	p_velocity->updateEdges(m_vScale);
+		// }
 	}
 
 	virtual bool advance() override {
 		// apply source in density field
-		p_density->applySource(0.45, 0.55, 0.1, 0.15);
+		// change here to modify source for fluid
+		// p_density->applySource(0.45, 0.55, 0.7, 0.95);
 
-		// add in new forces
-		addBuoyancy();
-		if (m_windOn)
-			addWind();
+		// // add in new forces
+		// addBuoyancy();
+		// addGravity();
+		// // if (m_windOn)
+		// // 	addWind();
 
-		addForce();
+		// addForce();
 
-		// remove divergence
-		solvePressure();
+		// // remove divergence
+		// solvePressure();
 
-		// advect everything
-		advectValues();
+		// // advect everything
+		// advectValues();
 
-		// reset forces
-		p_force->reset();
+		// // reset forces
+		// p_force->reset();
+
+		computePressureSPH();
+		computeForcesSPH();
+		integrateSPH();
 
 		// advance m_time
 		m_time += m_dt;
@@ -106,6 +143,7 @@ public:
 			viewer.data().add_edges(p_velocity->vs(), p_velocity->ve(), p_velocity->vc());
 		}
 	}	
+
 #pragma region FluidSteps
 	void addBuoyancy() {
 		double scaling = 64.0 / m_res_x;
@@ -114,6 +152,15 @@ public:
 		for (int i = 0; i < p_force->y().size(0); ++i) {
 			for (int j = 1; j < p_force->y().size(1) - 1; ++j) {
 				p_force->y()(i, j) += 0.1 * (p_density->x()(i, j - 1) + p_density->x()(i, j)) / 2.0 * scaling;
+			}
+		}
+	}
+
+	void addGravity() {
+		// add g
+		for (int i = 0; i < p_force->y().size(0); ++i) {
+			for (int j = 1; j < p_force->y().size(1) - 1; ++j) {
+				p_force->y()(i, j) -= 9.8;
 			}
 		}
 	}
@@ -255,6 +302,13 @@ public:
 	void MacCormackClamp(const Array2d& d, const Array2d& d_forward, const Array2d& u,  const Array2d& u_forward, const Array2d& v, const Array2d& v_forward);
 #pragma endregion Exercise
 
+#pragma region SPH
+	void initSPH(double xmin, double xmax, double ymin, double ymax);
+	void integrateSPH();
+	void computePressureSPH();
+	void computeForcesSPH();
+#pragma endregion SPH
+
 #pragma region SettersAndGetters
 	void selectField(int field) { m_field = field; }
 	void selectVField(bool v) { m_velocityOn = v; }
@@ -294,6 +348,17 @@ private:
 	bool m_windOn;
 	bool m_macOn;
 
+	float m_mass;
+	float m_k;
+	float m_h;
+	float m_rho0;
+	float m_visc_cons;
+
+	float m_POLY6;
+	float m_SPIKY_GRAD;
+	float m_VISC_LAP;
+	Eigen::Vector2d m_G;
+
 	Grid2* p_density;
 	Grid2* p_pressure;
 	Grid2* p_divergence;
@@ -304,6 +369,8 @@ private:
 	Eigen::MatrixXd m_renderV; // vertex positions, 
 	Eigen::MatrixXi m_renderF; // face indices 
 	Eigen::MatrixXd m_renderC; // face (or vertex) colors for rendering
+
+	vector<Particle> particles;
 
 	//shared_ptr<ParticlesData> m_pParticleData;
 };
