@@ -420,6 +420,7 @@ void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax) {
 	}
 }
 
+
 // =================================================
 // ==== Compute Densities and Pressures for SPH ====
 // =================================================
@@ -498,31 +499,79 @@ void FluidSim::integrateSPH() {
 		// =================================================
 		// ================ boundary checks ================
 		// =================================================
+		const float DAMP = 0.75;
+
 		int x_coord = (int)p.x.x();
 		int y_coord = (int)p.x.y();
 
-		// Left
-		if (x_coord <= 0) {
-			p.v(0) *= -0.5f;
-			p.x(0) = m_h;
+		// Left & Right Walls
+		if (p.v(0) != 0.0f) {
+			// Left 
+			if (x_coord < m_h) {
+				float tbounce = (p.x(0) - m_h) / p.v(0);
+
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(0) = 2 * m_h - p.x(0);
+				p.v(0) = -p.v(0) * DAMP;
+				p.v(1) *= DAMP;
+
+				// p.v(0) *= DAMP;
+				// p.x(0) = m_h;
+			}
 		}
 
-		// Right
-		if (x_coord >= m_res_x) {
-			p.v(0) *= -0.5f;
-			p.x(0) = m_res_x - m_h;
+		if (p.v(0) != 0.0f) {
+			// Right
+			if (x_coord > m_res_x - m_h) {
+				float tbounce = (p.x(0) - m_res_x + m_h) / p.v(0);
+
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(0) = 2*(m_res_x - m_h) - p.x(0);
+				p.v(0) = -p.v(0) * DAMP;
+				p.v(1) *= DAMP;
+
+				// p.v(0) *= DAMP;
+				// p.x(0) = m_res_x - m_h;
+			}
+		}	
+
+		// Bottom and Top Boundaries
+		if (p.v(1) != 0.0f) {
+			// Bottom
+			if (y_coord < m_h) {
+				float tbounce = (p.x(1) - m_h) / p.v(1);
+
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(1) = 2 * m_h - p.x(1);
+				p.v(1) = -p.v(1) * DAMP;
+				p.v(0) *= DAMP;
+
+				// p.v(1) *= DAMP;
+				// p.x(1) = m_h;
+			}
 		}
 
-		// Bottom
-		if (y_coord <= 0) {
-			p.v(1) *= -0.5f;
-			p.x(1) = m_h;
-		}
+		if (p.v(1) != 0.0f) {
+			// Top
+			if (y_coord > m_res_y - m_h) {
+				float tbounce = (p.x(1) - m_res_x + m_h) / p.v(1);
 
-		// Top
-		if (y_coord >= m_res_y) {
-			p.v(1) *= -0.5f;
-			p.x(1) = m_res_y - m_h;
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(1) = 2*(m_res_y - m_h) - p.x(1);
+				p.v(1) = -p.v(1) * DAMP;
+				p.v(0) *= DAMP;
+
+				// p.v(1) *= DAMP;
+				// p.x(1) = m_res_y - m_h;
+			}
 		}
 
 		// Update grid positions
