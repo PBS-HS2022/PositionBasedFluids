@@ -488,13 +488,58 @@ void FluidSim::computeForcesSPH() {
 void FluidSim::integrateSPH() {
 	// Array2d d_tmp(p_density->x());
 	p_density->reset();
+
+    // Values of C for each particle, calculated with equation 1 in PBF
+    std::vector<float> C_i;
+
+    // Values of lambda for each particle, calculated with equation 8 and 9 in PBF
+    std::vector<float> lambda_i;
+
+    // Values of the new positions for each particle, to be compared with the current one
+    std::vector<Eigen::Vector2d> new_x;
+
 	for (auto &p : particles) {
-		// Euler step
+		// Symplectic euler step with damping
 		p.v += m_dt * p.f / p.rho;
 		p.x += m_dt * p.v;
 
 		// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
 		// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
+
+		C_i.push_back((p.rho - m_rho0) - 1);
+    }
+
+    for (int iteration = 0; iteration < 10; iteration++) {
+        for (auto &p_i : particles) {
+            lambda_i.push_back((1 / m_rho0) * (m_SPIKY_GRAD * pow(undefined, 3.0f)));
+            // Potentially generate collision
+
+            // for all particles k
+                // for particles (neighbours) j
+        }
+
+        for (auto &p_i : particles) {
+            // calculate delta_p eq12
+            for (auto &p_j : particles) {
+
+            }
+
+            // any collision detections
+        }
+
+        for (auto &p_i : particles) {
+            // calculate new_x based on delta_x
+        }
+    }
+
+    int ctr = 0;
+    for (auto &p_i : particles) {
+        p_i.v = 1 / m_dt * (new_x[ctr] - p_i.x);
+        p_i.x = new_x[ctr];
+        ctr++;
+    }   
+
+    
 
 		// =================================================
 		// ================ boundary checks ================
