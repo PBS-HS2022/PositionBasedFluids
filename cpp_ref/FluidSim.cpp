@@ -532,15 +532,17 @@ void FluidSim::integrateSPH() {
         }
     }
 
+    // Fix the velocities based on the new constraint-solved positions
+    // And confirmt the positions
     int ctr = 0;
     for (auto &p_i : particles) {
         p_i.v = 1 / m_dt * (new_x[ctr] - p_i.x);
         p_i.x = new_x[ctr];
         ctr++;
-    }   
+    }
 
-    
 
+	for (auto &p : particles) {
 		// =================================================
 		// ================ boundary checks ================
 		// =================================================
