@@ -490,10 +490,13 @@ void FluidSim::integrateSPH() {
 	p_density->reset();
 
 	// Values of C for each particle, calculated with equation 1 in PBF
-	std::vector<float> C_i;
+	std::vector<float> density_constraints;
 
 	// Values of lambda for each particle, calculated with equation 8 and 9 in PBF
-	std::vector<float> lambda_i;
+	std::vector<float> lambda;
+
+	// The change in position, for each particle
+	std::vector<Eigen::Vector2d> delta_x;
 
 	// Values of the new positions for each particle, to be compared with the current one
 	std::vector<Eigen::Vector2d> new_x;
@@ -506,34 +509,82 @@ void FluidSim::integrateSPH() {
 		// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
 		// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
 
-		C_i.push_back((p.rho - m_rho0) - 1);
+		// Create the density constraint for each particle
+		density_constraints.push_back((p.rho - m_rho0) - 1);
 	}
 
+	// Iterate to solve the constraints
 	for (int iteration = 0; iteration < 10; iteration++) {
-		for (auto &p_i : particles) {
-			lambda_i.push_back((1 / m_rho0) * (m_SPIKY_GRAD * pow(undefined, 3.0f)));
-			// Potentially generate collision
 
-			// for all particles k
-				// for particles (neighbours) j
-		}
+		// For each particle, calculate lambda
+		for (int i = 0; i < particles.size(); i++) {
+			Particle p_i = particles[i];
 
-		for (auto &p_i : particles) {
-			// calculate delta_p eq12
-			for (auto &p_j : particles) {
-
+			// Calculate the gradient of the constraint function with respect
+			// to all (k) particles, and use its squared sum. Equation 9 of the
+			// PBF paper. In the PBF paper, k refers to all particles, but some
+			// publicly available implementations use just neighboring particles.
+			float sqrd_grad_constraints = 0;
+			// Note: for now we naively use all particles as its neighbours
+			for (int k = 0; k < particles.size(); k++) {
+				Particle p_k = particles[k];
+				// Equation 7 & 8 in the PBF paper, finding the gradient of the
+				// constraint function (for particle i) with respect with
+				// particle k.
+				if (k == i) {
+					// k == i case
+					// Loop over neighbours j. For now we naively use all particles.
+					float sum = 0;
+					for (int j = 0; j < particles.size(); j++) {
+						Particle p_j = particles[j];
+						// TODO: is .norm() the right thing to do?
+						sum += m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f);
+					}
+					sqrd_grad_constraints += pow(1 / (m_rho0) * sum, 2);
+				} else {
+					// k == j case
+					Particle p_j = particles[k];
+					// TODO: is .norm() the right thing to do?
+					sqrd_grad_constraints += pow(1 / (m_rho0) * -(m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f)), 2);
+				}
 			}
 
-			// any collision detections
+			lambda.push_back(-density_constraints[i] / sqrd_grad_constraints);
 		}
 
-		for (auto &p_i : particles) {
+		for (int i = 0; i < particles.size(); i++) {
+			Particle p_i = particles[i];
+
+			// calculate delta_p eq12
+			Eigen::Vector2d position_update;
+
+			// Loop over the neighbouring particles as per Equation 12 in PBF.
+			// TODO: change this to neighbouring particles instead of all
+			for (int j = 0; j < particles.size(); j++) {
+				Particle p_j = particles[j];
+
+				// Any correction term (defined in Equation 13, unimplemented)
+				float corr = 0;
+
+				// TODO: this is wrong, because we want the gradient of the SPIKY
+				// kernel and that should be returning a vector
+				position_update += Eigen::Vector2d((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
+			}
+			delta_x.push_back(position_update);
+
+			// TODO: any collision detections go here
+		}
+
+		for (int i = 0; i < particles.size(); i++) {
+			Particle p_i = particles[i];
+
 			// calculate new_x based on delta_x
+			new_x.push_back(p_i.x + delta_x[i]);
 		}
 	}
 
 	// Fix the velocities based on the new constraint-solved positions
-	// And confirmt the positions
+	// And confirm the positions
 	int ctr = 0;
 	for (auto &p_i : particles) {
 		p_i.v = 1 / m_dt * (new_x[ctr] - p_i.x);
