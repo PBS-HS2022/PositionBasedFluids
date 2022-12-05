@@ -490,27 +490,30 @@ void FluidSim::integrateSPH() {
 	p_density->reset();
 
 	// Values of C for each particle, calculated with equation 1 in PBF
-	std::vector<float> density_constraints;
+	std::vector<float> density_constraints(particles.size());
 
 	// Values of lambda for each particle, calculated with equation 8 and 9 in PBF
-	std::vector<float> lambda;
+	std::vector<float> lambda(particles.size());
 
 	// The change in position, for each particle
-	std::vector<Eigen::Vector2d> delta_x;
+	std::vector<Eigen::Vector2d> delta_x(particles.size());
 
 	// Values of the new positions for each particle, to be compared with the current one
-	std::vector<Eigen::Vector2d> new_x;
+	std::vector<Eigen::Vector2d> new_x(particles.size());
 
-	for (auto &p : particles) {
+	// Wondering if for_each is better than an explicit for loop
+	for (int i = 0; i < particles.size(); i++) {
+		Particle p_i = particles[i];
+
 		// Symplectic euler step with damping
-		p.v += m_dt * p.f / p.rho;
-		p.x += m_dt * p.v;
+		p_i.v += m_dt * p_i.f / p_i.rho;
+		p_i.x += m_dt * p_i.v;
 
 		// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
 		// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
 
 		// Create the density constraint for each particle
-		density_constraints.push_back((p.rho - m_rho0) - 1);
+		density_constraints[i] = (p_i.rho - m_rho0) - 1;
 	}
 
 	// Iterate to solve the constraints
@@ -549,15 +552,14 @@ void FluidSim::integrateSPH() {
 				}
 			}
 
-			lambda.push_back(-density_constraints[i] / sqrd_grad_constraints);
+			lambda[i] = -density_constraints[i] / sqrd_grad_constraints;
 		}
 
 		for (int i = 0; i < particles.size(); i++) {
 			Particle p_i = particles[i];
 
 			// calculate delta_p eq12
-			Eigen::Vector2d position_update;
-
+			
 			// Loop over the neighbouring particles as per Equation 12 in PBF.
 			// TODO: change this to neighbouring particles instead of all
 			for (int j = 0; j < particles.size(); j++) {
@@ -568,9 +570,8 @@ void FluidSim::integrateSPH() {
 
 				// TODO: this is wrong, because we want the gradient of the SPIKY
 				// kernel and that should be returning a vector
-				position_update += Eigen::Vector2d((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
+				delta_x[i] += Eigen::Vector2d((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
 			}
-			delta_x.push_back(position_update);
 
 			// TODO: any collision detections go here
 		}
@@ -579,7 +580,7 @@ void FluidSim::integrateSPH() {
 			Particle p_i = particles[i];
 
 			// calculate new_x based on delta_x
-			new_x.push_back(p_i.x + delta_x[i]);
+			new_x[i] = p_i.x + delta_x[i];
 		}
 	}
 
