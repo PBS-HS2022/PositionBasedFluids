@@ -570,7 +570,7 @@ void FluidSim::integrateSPH() {
 
 				// TODO: this is wrong, because we want the gradient of the SPIKY
 				// kernel and that should be returning a vector
-				delta_x[i] += Eigen::Vector2d((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
+				delta_x[i] += (p_i.x - p_j.x).normalized() * ((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
 			}
 
 			// TODO: any collision detections go here
