@@ -41,6 +41,7 @@ public:
 		m_velocityOn = p_fluidSim->getVField();
 		setSimulation(p_fluidSim);
 		setFastForward(true);
+		m_viewer.core.align_camera_center(p_fluidSim->getVertices(), p_fluidSim->getFaces());
 		//setParticleSystem(p_fluidSim->getParticlesData());
 		start();
 	}
