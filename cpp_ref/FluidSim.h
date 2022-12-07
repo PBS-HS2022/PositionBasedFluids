@@ -338,6 +338,8 @@ public:
 	bool getWind() const { return m_windOn; }
 	bool getMacCormack() const { return m_macOn; }
 	double getTimestep() const { return m_dt; }
+	Eigen::MatrixXd getVertices() const { return m_renderV;  }
+	Eigen::MatrixXi getFaces() const { return m_renderF; }
 #pragma endregion SettersAndGetters
 
 private:
@@ -376,6 +378,10 @@ private:
 	Eigen::MatrixXd m_renderC; // face (or vertex) colors for rendering
 
 	vector<Particle> particles;
+	double m_xmin;
+	double m_xmax;
+	double m_ymin;
+	double m_ymax;
 
 	//shared_ptr<ParticlesData> m_pParticleData;
 };
