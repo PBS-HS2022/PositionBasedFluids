@@ -527,28 +527,15 @@ void FluidSim::integrateSPH() {
 
 		// Store the indices for the neighbours, assuming square grid
 		neighbour_indices[i] = {
-			i - 1,
-			i + 1,
-			i - rowLen,
-			i + rowLen,
-			i - 1 - rowLen,
-			i - 1 + rowLen,
-			i + 1 - rowLen,
-			i + 1 + rowLen
+			(i - 1) % (int)particles.size(),
+			(i + 1) % (int)particles.size(),
+			(i - rowLen) % (int)particles.size(),
+			(i + rowLen) % (int)particles.size(),
+			(i - 1 - rowLen) % (int)particles.size(),
+			(i - 1 + rowLen) % (int)particles.size(),
+			(i + 1 - rowLen) % (int)particles.size(),
+			(i + 1 + rowLen) % (int)particles.size()
 		};
-		// Filter out invalid indices.
-		// TODO: this should also account for invalid wrapping over
-		// rows of particles, but currently it doesn't.
-		neighbour_indices[i].erase(
-			std::remove_if(
-				neighbour_indices[i].begin(),
-				neighbour_indices[i].end(),
-				[&](int index) {
-					return index >= particles.size() || index < 0;
-				}
-			),
-			neighbour_indices[i].end()
-		);
 	}
 
 	// Iterate to solve the constraints
@@ -594,8 +581,8 @@ void FluidSim::integrateSPH() {
 			Particle p_i = particles[i];
 
 			// calculate delta_p eq12
-			
-			delta_x[i] = Eigen::Vector2d(0.f);
+
+			delta_x[i] = Eigen::Vector2d();
 			// Loop over the neighbouring particles as per Equation 12 in PBF.
 			for (int j = 0; j < neighbour_indices[i].size(); j++) {
 				Particle p_j = particles[neighbour_indices[i][j]];
@@ -616,7 +603,7 @@ void FluidSim::integrateSPH() {
 		}
 	}
 
-	// Fix the velocities based on the new constraint-solved positions
+	// Correct the velocities based on the new constraint-solved positions
 	// And confirm the positions
 	int ctr = 0;
 	for (auto &p_i : particles) {
@@ -627,7 +614,89 @@ void FluidSim::integrateSPH() {
 		// yuto: why is this needed?
 		// also we aren't checking if p_i.x.x() and y() are within
 		// the p_density min/max bounds, this might cause segfaults
-		p_density->set_m_x((int)p_i.x.x(), (int)p_i.x.y());
+		// =================================================
+		// ================ boundary checks ================
+		// =================================================
+		const float DAMP = 0.75;
+		Particle p = p_i;
+
+		int x_coord = (int)p.x.x();
+		int y_coord = (int)p.x.y();
+
+		// Left & Right Walls
+		// if (p.v(0) != 0.0f) {
+			// Left 
+			if (x_coord < m_h) {
+				float tbounce = (p.x(0) - m_h) / p.v(0);
+
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(0) = 2 * m_h - p.x(0);
+				p.v(0) = -p.v(0) * DAMP;
+				p.v(1) *= DAMP;
+
+				// p.v(0) *= DAMP;
+				// p.x(0) = m_h;
+			}
+		// }
+
+		// if (p.v(0) != 0.0f) {
+			// Right
+			if (x_coord > m_res_x - m_h) {
+				float tbounce = (p.x(0) - m_res_x + m_h) / p.v(0);
+
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(0) = 2*(m_res_x - m_h) - p.x(0);
+				p.v(0) = -p.v(0) * DAMP;
+				p.v(1) *= DAMP;
+
+				// p.v(0) *= DAMP;
+				// p.x(0) = m_res_x - m_h;
+			}
+		// }	
+
+		// Bottom and Top Boundaries
+		// if (p.v(1) != 0.0f) {
+			// Bottom
+			if (y_coord < m_h) {
+				float tbounce = (p.x(1) - m_h) / p.v(1);
+
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(1) = 2 * m_h - p.x(1);
+				p.v(1) = -p.v(1) * DAMP;
+				p.v(0) *= DAMP;
+
+				// p.v(1) *= DAMP;
+				// p.x(1) = m_h;
+			}
+		// }
+
+		// if (p.v(1) != 0.0f) {
+			// Top
+			if (y_coord > m_res_y - m_h) {
+				float tbounce = (p.x(1) - m_res_x + m_h) / p.v(1);
+
+				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+				p.x(1) = 2*(m_res_y - m_h) - p.x(1);
+				p.v(1) = -p.v(1) * DAMP;
+				p.v(0) *= DAMP;
+
+				// p.v(1) *= DAMP;
+				// p.x(1) = m_res_y - m_h;
+			}
+		// }
+
+		// Update grid positions
+		std::cout << p.x << std::endl;
+		std::cout << abs((int)p.x.x()) % m_res_x << " " << abs((int)p.x.y()) % m_res_y << std::endl;
+		p_density->set_m_x(abs((int)p.x.x()) % m_res_x, abs((int)p.x.y()) % m_res_y);
 	}
 	// yuto: removed stuff down here for debugging, check git log
 	std::cout << "here" << std::endl;
