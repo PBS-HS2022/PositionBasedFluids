@@ -508,6 +508,7 @@ void FluidSim::integrateSPH() {
 	std::vector<Eigen::Vector2d> new_x(particles.size());
 
 	// Wondering if for_each is better than an explicit for loop
+	// cout << "FIRST LOOP" << endl;
 	for (int i = 0; i < particles.size(); i++) {
 		Particle p_i = particles[i];
 
@@ -523,25 +524,35 @@ void FluidSim::integrateSPH() {
 
 
 		// row length in particle grid
-		int rowLen = (int)(m_xmax - m_xmin * m_res_x);
+		int rowLen = (int)((m_xmax - m_xmin) * m_res_x);
 
 		// Store the indices for the neighbours, assuming square grid
-		neighbour_indices[i] = {
-			(i - 1) % (int)particles.size(),
-			(i + 1) % (int)particles.size(),
-			(i - rowLen) % (int)particles.size(),
-			(i + rowLen) % (int)particles.size(),
-			(i - 1 - rowLen) % (int)particles.size(),
-			(i - 1 + rowLen) % (int)particles.size(),
-			(i + 1 - rowLen) % (int)particles.size(),
-			(i + 1 + rowLen) % (int)particles.size()
-		};
+		for (int x : {-1, 0, 1}) {
+			for (int y : {-rowLen, 0, rowLen}) {
+				if (i + x + y >= 0 && i + x + y < particles.size()) {
+					neighbour_indices[i].push_back(i + x + y);
+				}
+			}
+		}
+		// neighbour_indices[i] = {
+		// 	i,
+		// 	(i - 1) % (int)particles.size(),
+		// 	(i + 1) % (int)particles.size(),
+		// 	(i - rowLen) % (int)particles.size(),
+		// 	(i + rowLen) % (int)particles.size(),
+		// 	(i - 1 - rowLen) % (int)particles.size(),
+		// 	(i - 1 + rowLen) % (int)particles.size(),
+		// 	(i + 1 - rowLen) % (int)particles.size(),
+		// 	(i + 1 + rowLen) % (int)particles.size()
+		// };
 	}
 
+	// cout << "CONSTRAINT LOOP" << endl;
 	// Iterate to solve the constraints
 	for (int iteration = 0; iteration < 10; iteration++) {
 
 		// For each particle, calculate lambda
+		// cout << "ITeration: " << iteration << endl;
 		for (int i = 0; i < particles.size(); i++) {
 			Particle p_i = particles[i];
 
@@ -551,8 +562,11 @@ void FluidSim::integrateSPH() {
 			// publicly available implementations use just neighboring particles.
 			float sqrd_grad_constraints = 0;
 			// Note: for now we naively use all particles as its neighbours
-			for (int k = 0; k < neighbour_indices[i].size(); k++) {
-				Particle p_k = particles[neighbour_indices[i][k]];
+			// cout << "PARTICLE I : " << i << endl;
+			for (int l = 0; l < neighbour_indices[i].size(); l++) {
+				int k = neighbour_indices[i][l];
+				Particle p_k = particles[k];
+				// cout << "PARTICLE K" << k << endl;
 				// Equation 7 & 8 in the PBF paper, finding the gradient of the
 				// constraint function (for particle i) with respect with
 				// particle k.
@@ -561,7 +575,10 @@ void FluidSim::integrateSPH() {
 					// Loop over neighbours of i, call their indices j.
 					float sum = 0;
 					for (int j = 0; j < neighbour_indices[i].size(); j++) {
+						// cout << "Particle J : " << j << endl;
+						// cout << neighbour_indices[i][j] << " -> " << particles.size() << endl;
 						Particle p_j = particles[neighbour_indices[i][j]];
+						// cout << "After particle access " << endl;
 						// TODO: is .norm() the right thing to do?
 						sum += (p_i.x - p_j.x).norm() * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f);
 					}
@@ -577,6 +594,7 @@ void FluidSim::integrateSPH() {
 			lambda[i] = -density_constraints[i] / sqrd_grad_constraints;
 		}
 
+		// cout << "DELTA P LOOP" << endl;
 		for (int i = 0; i < particles.size(); i++) {
 			Particle p_i = particles[i];
 
@@ -585,10 +603,13 @@ void FluidSim::integrateSPH() {
 			delta_x[i] = Eigen::Vector2d();
 			// Loop over the neighbouring particles as per Equation 12 in PBF.
 			for (int j = 0; j < neighbour_indices[i].size(); j++) {
+				if (neighbour_indices[i][j] == i) continue;
 				Particle p_j = particles[neighbour_indices[i][j]];
 
 				// Any correction term (defined in Equation 13, unimplemented)
 				float corr = 0;
+
+				// cout << (p_i.x - p_j.x).normalized() << " ==> " << p_i.x << " --> " << p_j.x << endl;
 
 				delta_x[i] += (p_i.x - p_j.x).normalized() * ((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
 			}
@@ -606,9 +627,12 @@ void FluidSim::integrateSPH() {
 	// Correct the velocities based on the new constraint-solved positions
 	// And confirm the positions
 	int ctr = 0;
+	// cout << "FINAL LOOP" << endl;
 	for (auto &p_i : particles) {
+		// cout << "START OF LOOP: " << p_i.x << endl;
 		p_i.v = 1 / m_dt * (new_x[ctr] - p_i.x);
 		p_i.x = new_x[ctr];
+		// cout << "After update new_x: " << p_i.x << endl;
 		ctr++;
 		
 		// yuto: why is this needed?
@@ -620,78 +644,78 @@ void FluidSim::integrateSPH() {
 		const float DAMP = 0.75;
 		Particle p = p_i;
 
-		int x_coord = (int)p.x.x();
-		int y_coord = (int)p.x.y();
+		// int x_coord = (int)p.x.x();
+		// int y_coord = (int)p.x.y();
 
-		// Left & Right Walls
-		// if (p.v(0) != 0.0f) {
-			// Left 
-			if (x_coord < m_h) {
-				float tbounce = (p.x(0) - m_h) / p.v(0);
+		// // Left & Right Walls
+		// // if (p.v(0) != 0.0f) {
+		// 	// Left 
+		// 	if (x_coord < m_h) {
+		// 		float tbounce = (p.x(0) - m_h) / p.v(0);
 
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+		// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+		// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
 
-				p.x(0) = 2 * m_h - p.x(0);
-				p.v(0) = -p.v(0) * DAMP;
-				p.v(1) *= DAMP;
+		// 		p.x(0) = 2 * m_h - p.x(0);
+		// 		p.v(0) = -p.v(0) * DAMP;
+		// 		p.v(1) *= DAMP;
 
-				// p.v(0) *= DAMP;
-				// p.x(0) = m_h;
-			}
-		// }
+		// 		// p.v(0) *= DAMP;
+		// 		// p.x(0) = m_h;
+		// 	}
+		// // }
 
-		// if (p.v(0) != 0.0f) {
-			// Right
-			if (x_coord > m_res_x - m_h) {
-				float tbounce = (p.x(0) - m_res_x + m_h) / p.v(0);
+		// // if (p.v(0) != 0.0f) {
+		// 	// Right
+		// 	if (x_coord > m_res_x - m_h) {
+		// 		float tbounce = (p.x(0) - m_res_x + m_h) / p.v(0);
 
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+		// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+		// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
 
-				p.x(0) = 2*(m_res_x - m_h) - p.x(0);
-				p.v(0) = -p.v(0) * DAMP;
-				p.v(1) *= DAMP;
+		// 		p.x(0) = 2*(m_res_x - m_h) - p.x(0);
+		// 		p.v(0) = -p.v(0) * DAMP;
+		// 		p.v(1) *= DAMP;
 
-				// p.v(0) *= DAMP;
-				// p.x(0) = m_res_x - m_h;
-			}
-		// }	
+		// 		// p.v(0) *= DAMP;
+		// 		// p.x(0) = m_res_x - m_h;
+		// 	}
+		// // }	
 
-		// Bottom and Top Boundaries
-		// if (p.v(1) != 0.0f) {
-			// Bottom
-			if (y_coord < m_h) {
-				float tbounce = (p.x(1) - m_h) / p.v(1);
+		// // Bottom and Top Boundaries
+		// // if (p.v(1) != 0.0f) {
+		// 	// Bottom
+		// 	if (y_coord < m_h) {
+		// 		float tbounce = (p.x(1) - m_h) / p.v(1);
 
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+		// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+		// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
 
-				p.x(1) = 2 * m_h - p.x(1);
-				p.v(1) = -p.v(1) * DAMP;
-				p.v(0) *= DAMP;
+		// 		p.x(1) = 2 * m_h - p.x(1);
+		// 		p.v(1) = -p.v(1) * DAMP;
+		// 		p.v(0) *= DAMP;
 
-				// p.v(1) *= DAMP;
-				// p.x(1) = m_h;
-			}
-		// }
+		// 		// p.v(1) *= DAMP;
+		// 		// p.x(1) = m_h;
+		// 	}
+		// // }
 
-		// if (p.v(1) != 0.0f) {
-			// Top
-			if (y_coord > m_res_y - m_h) {
-				float tbounce = (p.x(1) - m_res_x + m_h) / p.v(1);
+		// // if (p.v(1) != 0.0f) {
+		// 	// Top
+		// 	if (y_coord > m_res_y - m_h) {
+		// 		float tbounce = (p.x(1) - m_res_x + m_h) / p.v(1);
 
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+		// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+		// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
 
-				p.x(1) = 2*(m_res_y - m_h) - p.x(1);
-				p.v(1) = -p.v(1) * DAMP;
-				p.v(0) *= DAMP;
+		// 		p.x(1) = 2*(m_res_y - m_h) - p.x(1);
+		// 		p.v(1) = -p.v(1) * DAMP;
+		// 		p.v(0) *= DAMP;
 
-				// p.v(1) *= DAMP;
-				// p.x(1) = m_res_y - m_h;
-			}
-		// }
+		// 		// p.v(1) *= DAMP;
+		// 		// p.x(1) = m_res_y - m_h;
+		// 	}
+		// // }
 
 		// Update grid positions
 		std::cout << p.x << std::endl;
