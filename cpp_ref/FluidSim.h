@@ -56,6 +56,8 @@ public:
 		m_VISC_LAP = 40.f / (M_PI * pow(m_h, 5.f));
 		m_G = Eigen::Vector2d(0.f, -9.81f);
 
+		m_grads = std::vector<Eigen::Vector2d>(m_NUM_PARTICLES, Eigen::Vector2d(0.0f));
+
 		// ++++++++++ SPH variables +++++++++++++++++++++++
 
 		p_density = new Grid2(m_res_x, m_res_y, m_dx);
@@ -128,6 +130,7 @@ public:
 
 		computePressureSPH();
 		computeForcesSPH();
+		// solveFluids();
 		integrateSPH();
 
 		// advance m_time
@@ -311,6 +314,8 @@ public:
 	void integrateSPH();
 	void computePressureSPH();
 	void computeForcesSPH();
+	void solveFluids();
+	void solveBoundaries();
 #pragma endregion SPH
 
 #pragma region SettersAndGetters
@@ -365,6 +370,8 @@ private:
 	float m_SPIKY_GRAD;
 	float m_VISC_LAP;
 	Eigen::Vector2d m_G;
+
+	std::vector<Eigen::Vector2d> m_grads;
 
 	Grid2* p_density;
 	Grid2* p_pressure;

@@ -91,6 +91,92 @@ void FluidSim::computeForcesSPH() {
 	}
 }
 
+
+// =================================================
+// ============== Solve Fluids =====================
+// =================================================
+void FluidSim::solveFluids() {
+	for (int i=0; i < particles.size(); i++) {
+		Particle p_i = particles[i];
+		// First neighbor
+		int first_neighbor = 1; // Index of first neighbor in the grid -> needs to be changed with grid neighbor
+		// Num neighbors
+		int num_neighbors = 10; // Arbitrary value -> needs to be updated with grid neighbors
+
+		// Initial values
+		float rho = 0.0f;
+		float sum_grad2 = 0.0f;
+		Eigen::Vector2d grad_i(0.0f);
+		
+		// Loop through neighbors
+		for (int j=0; j < num_neighbors; j++) {
+			int id = first_neighbor + j; // neighbor id
+			Particle p_j = particles[id];
+			//Calculate distance between particles
+			Eigen::Vector2d n = p_j.x - p_i.x; 
+			float r = n.norm();
+
+			// normalize
+			if (r > 0.0f) {
+				n /= r;
+			}
+			// If distance is greater than kernel radius (h)
+			if (r > m_h) {
+				m_grads[j] = Eigen::Vector2d(0.0f);
+			}
+			else {
+				float r2 = r * r;
+				float w = (m_h * m_h) - r2;
+				
+				rho += m_POLY6 * w * w * w;
+				float grad = (m_POLY6 * 3.0f * w * w * (-2.0f * r)) / m_rho0;
+
+				m_grads[j] = n * grad;
+
+				grad_i -= n * grad;
+				sum_grad2 += grad * grad;
+			}
+		}
+
+		sum_grad2 += grad_i.squaredNorm();
+
+		float c = rho / m_rho0 - 1.0f;
+		if (c < 0.0f) {
+			continue;
+		}
+		
+		float lambda = -c / (sum_grad2 + 0.0001);
+
+		for (int j=0; j < num_neighbors; j++) {
+			int id = first_neighbor + j; // neighbor id
+			Particle p_j = particles[id];
+
+			if (id == 1) {
+				p_j.x += lambda * grad_i;
+			}
+			else {
+				p_j.x += lambda * m_grads[j];
+			}
+		}
+
+	}
+}
+
+// =================================================
+// ============= Boundary Checks ===================
+// =================================================
+void FluidSim::solveBoundaries() {
+	for (auto &p_i : particles) {
+		// Clamp positions to edges if it goes beyond
+		if (p_i.x(1) < 0.0f) {
+			p_i.x(1) = 0.0f;
+		}
+		p_i.x(0) = clamp(p_i.x(0), 0.0, (double)m_res_x);
+
+		// More boundary checks?
+	}
+}
+
 // =================================================
 // ===== SPH Integration and boundary checks =======
 // =================================================
@@ -152,81 +238,87 @@ void FluidSim::integrateSPH() {
 		// };
 	}
 
+	// TODO : BOUNDARY CHECKING HERE
+
 	// cout << "CONSTRAINT LOOP" << endl;
 	// Iterate to solve the constraints
 	for (int iteration = 0; iteration < 10; iteration++) {
+		//Euler step? Maybe...
+
+		// Solve fluids here
+		solveFluids();
 
 		// For each particle, calculate lambda
 		// cout << "ITeration: " << iteration << endl;
-		for (int i = 0; i < particles.size(); i++) {
-			Particle p_i = particles[i];
+		// for (int i = 0; i < particles.size(); i++) {
+		// 	Particle p_i = particles[i];
 
-			// Calculate the gradient of the constraint function with respect
-			// to all (k) particles, and use its squared sum. Equation 9 of the
-			// PBF paper. In the PBF paper, k refers to all particles, but some
-			// publicly available implementations use just neighboring particles.
-			float sqrd_grad_constraints = 0;
-			// Note: for now we naively use all particles as its neighbours
-			// cout << "PARTICLE I : " << i << endl;
-			for (int l = 0; l < neighbour_indices[i].size(); l++) {
-				int k = neighbour_indices[i][l];
-				Particle p_k = particles[k];
-				// cout << "PARTICLE K" << k << endl;
-				// Equation 7 & 8 in the PBF paper, finding the gradient of the
-				// constraint function (for particle i) with respect with
-				// particle k.
-				if (k == i) {
-					// k == i case
-					// Loop over neighbours of i, call their indices j.
-					float sum = 0;
-					for (int j = 0; j < neighbour_indices[i].size(); j++) {
-						// cout << "Particle J : " << j << endl;
-						// cout << neighbour_indices[i][j] << " -> " << particles.size() << endl;
-						Particle p_j = particles[neighbour_indices[i][j]];
-						// cout << "After particle access " << endl;
-						// TODO: is .norm() the right thing to do?
-						sum += (p_i.x - p_j.x).norm() * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f);
-					}
-					sqrd_grad_constraints += pow(1 / (m_rho0) * sum, 2);
-				} else {
-					// k == j case
-					Particle p_j = particles[k];
-					// TODO: is .norm() the right thing to do?
-					sqrd_grad_constraints += pow((p_i.x - p_j.x).norm() * 1 / (m_rho0) * -(m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f)), 2);
-				}
-			}
+		// 	// Calculate the gradient of the constraint function with respect
+		// 	// to all (k) particles, and use its squared sum. Equation 9 of the
+		// 	// PBF paper. In the PBF paper, k refers to all particles, but some
+		// 	// publicly available implementations use just neighboring particles.
+		// 	float sqrd_grad_constraints = 0;
+		// 	// Note: for now we naively use all particles as its neighbours
+		// 	// cout << "PARTICLE I : " << i << endl;
+		// 	for (int l = 0; l < neighbour_indices[i].size(); l++) {
+		// 		int k = neighbour_indices[i][l];
+		// 		Particle p_k = particles[k];
+		// 		// cout << "PARTICLE K" << k << endl;
+		// 		// Equation 7 & 8 in the PBF paper, finding the gradient of the
+		// 		// constraint function (for particle i) with respect with
+		// 		// particle k.
+		// 		if (k == i) {
+		// 			// k == i case
+		// 			// Loop over neighbours of i, call their indices j.
+		// 			float sum = 0;
+		// 			for (int j = 0; j < neighbour_indices[i].size(); j++) {
+		// 				// cout << "Particle J : " << j << endl;
+		// 				// cout << neighbour_indices[i][j] << " -> " << particles.size() << endl;
+		// 				Particle p_j = particles[neighbour_indices[i][j]];
+		// 				// cout << "After particle access " << endl;
+		// 				// TODO: is .norm() the right thing to do?
+		// 				sum += (p_i.x - p_j.x).norm() * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f);
+		// 			}
+		// 			sqrd_grad_constraints += pow(1 / (m_rho0) * sum, 2);
+		// 		} else {
+		// 			// k == j case
+		// 			Particle p_j = particles[k];
+		// 			// TODO: is .norm() the right thing to do?
+		// 			sqrd_grad_constraints += pow((p_i.x - p_j.x).norm() * 1 / (m_rho0) * -(m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f)), 2);
+		// 		}
+		// 	}
 
-			lambda[i] = -density_constraints[i] / sqrd_grad_constraints;
-		}
+		// 	lambda[i] = -density_constraints[i] / sqrd_grad_constraints;
+		// }
 
-		// cout << "DELTA P LOOP" << endl;
-		for (int i = 0; i < particles.size(); i++) {
-			Particle p_i = particles[i];
+		// // cout << "DELTA P LOOP" << endl;
+		// for (int i = 0; i < particles.size(); i++) {
+		// 	Particle p_i = particles[i];
 
-			// calculate delta_p eq12
+		// 	// calculate delta_p eq12
 
-			delta_x[i] = Eigen::Vector2d();
-			// Loop over the neighbouring particles as per Equation 12 in PBF.
-			for (int j = 0; j < neighbour_indices[i].size(); j++) {
-				if (neighbour_indices[i][j] == i) continue;
-				Particle p_j = particles[neighbour_indices[i][j]];
+		// 	delta_x[i] = Eigen::Vector2d();
+		// 	// Loop over the neighbouring particles as per Equation 12 in PBF.
+		// 	for (int j = 0; j < neighbour_indices[i].size(); j++) {
+		// 		if (neighbour_indices[i][j] == i) continue;
+		// 		Particle p_j = particles[neighbour_indices[i][j]];
 
-				// Any correction term (defined in Equation 13, unimplemented)
-				float corr = 0;
+		// 		// Any correction term (defined in Equation 13, unimplemented)
+		// 		float corr = 0;
 
-				// cout << (p_i.x - p_j.x).normalized() << " ==> " << p_i.x << " --> " << p_j.x << endl;
+		// 		// cout << (p_i.x - p_j.x).normalized() << " ==> " << p_i.x << " --> " << p_j.x << endl;
 
-				delta_x[i] += (p_i.x - p_j.x).normalized() * ((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
-			}
-			// TODO: any collision detections go here
-		}
+		// 		delta_x[i] += (p_i.x - p_j.x).normalized() * ((1 / m_rho0) * (lambda[i] + lambda[j] + corr) * m_SPIKY_GRAD * pow(p_i.x.norm() - p_j.x.norm(), 3.0f));
+		// 	}
+		// 	// TODO: any collision detections go here
+		// }
 
-		for (int i = 0; i < particles.size(); i++) {
-			Particle p_i = particles[i];
+		// for (int i = 0; i < particles.size(); i++) {
+		// 	Particle p_i = particles[i];
 
-			// calculate new_x based on delta_x
-			new_x[i] = p_i.x + delta_x[i];
-		}
+		// 	// calculate new_x based on delta_x
+		// 	new_x[i] = p_i.x + delta_x[i];
+		// }
 	}
 
 	// Correct the velocities based on the new constraint-solved positions
