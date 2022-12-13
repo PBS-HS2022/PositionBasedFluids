@@ -1,4 +1,5 @@
 #include "FluidSim.h"
+#include <algorithm>
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++
 // ++++++++++++++ SPH FUNCTIONS ++++++++++++++++++++
@@ -91,26 +92,85 @@ void FluidSim::computeForcesSPH() {
 	}
 }
 
+// =================================================
+// =============== Find Neighbors ==================
+// =================================================
+// Finds neighbors for all particles at the current time.
+std::vector<std::vector<int>> FluidSim::findNeighbors() {
+	// Implementation of Blazing-Fast Neighbor Searching with Spatial Hashing
+	// https://matthias-research.github.io/pages/tenMinutePhysics/11-hashing.pdf
+	auto get_grid_hash = [this](Eigen::Vector2i grid_pos) {
+		int h = (grid_pos.x() * 92837111) ^ (grid_pos.y() * 689287499);
+		// Add the following term for 3D:
+		// ^ (grid_pos.z() * 283923481);
+		return abs(h) % particles.size();
+	};
+
+	auto get_nearest_grid = [this](Eigen::Vector2d particle_pos) {
+		// Use Vector3i for 3D:
+		// return Eigen::Vector3i((int)floor(particle_pos.x() / m_dx), (int)floor(particle_pos.y() / m_dx), (int)floor(particle_pos.z() / m_dx));
+		return Eigen::Vector2i((int)floor(particle_pos.x() / m_dx), (int)floor(particle_pos.y() / m_dx));
+	};
+
+	// 1D Hashtable representing spatial coordinates. The value in each cell
+	// is a vector of all particle (global indices) that exist in that grid
+	// location. If there are no particles at that grid cell, the vector is of
+	// size zero.
+	std::vector<std::vector<int>> splatted_grid(particles.size());
+
+	for (int i = 0; i < particles.size(); i++) {
+		Particle p_i = particles[i];
+		// Find the spatial hash and append the particle global index to the
+		// vector at that collection grid.
+		splatted_grid[get_grid_hash(get_nearest_grid(p_i.x))].push_back(i);
+	}
+
+	// Now go through each particle, find the spatial hash, and get the other
+	// particles at the same grid location, collected above. This will include
+	// the particle itself as the first entry.
+	std::vector<std::vector<int>> neighbors(particles.size());
+	for (int i = 0; i < particles.size(); i++) {
+		Particle p_i = particles[i];
+
+		// Find nearest grid positions
+		Eigen::Vector2i grid_pos = get_nearest_grid(p_i.x);
+		for (int x : {grid_pos.x() - 1, grid_pos.x(), grid_pos.x() + 1}) {
+			for (int y : {grid_pos.y() - 1, grid_pos.y(), grid_pos.y() + 1}) {
+				// For all particles that are in this cell, collect those that
+				// are within the defined proximity radius, which is the cell
+				// size.
+				// Things that may fail this test include points that are at
+				// opposite diagonal ends in a cell.
+				auto this_grid_hash = get_grid_hash(Eigen::Vector2i(x, y));
+				for (int j : splatted_grid[this_grid_hash]) {
+					if ((particles[j].x - p_i.x).squaredNorm() < m_dx) {
+						neighbors[i].push_back(j);
+					}
+				}
+			}
+		}
+	}
+
+	return neighbors;
+}
+
 
 // =================================================
 // ============== Solve Fluids =====================
 // =================================================
 void FluidSim::solveFluids() {
+	std::vector<std::vector<int>> neighbors = findNeighbors();
 	for (int i=0; i < particles.size(); i++) {
 		Particle p_i = particles[i];
-		// First neighbor
-		int first_neighbor = 1; // Index of first neighbor in the grid -> needs to be changed with grid neighbor
-		// Num neighbors
-		int num_neighbors = 10; // Arbitrary value -> needs to be updated with grid neighbors
 
 		// Initial values
 		float rho = 0.0f;
 		float sum_grad2 = 0.0f;
-		Eigen::Vector2d grad_i(0.0f);
+		Eigen::Vector2d grad_i(0.0f, 0.0f);
 		
 		// Loop through neighbors
-		for (int j=0; j < num_neighbors; j++) {
-			int id = first_neighbor + j; // neighbor id
+		for (int neighbor_ix=0; neighbor_ix < neighbors[i].size(); neighbor_ix++) {
+			int id = neighbors[i][neighbor_ix];
 			Particle p_j = particles[id];
 			//Calculate distance between particles
 			Eigen::Vector2d n = p_j.x - p_i.x; 
@@ -122,7 +182,7 @@ void FluidSim::solveFluids() {
 			}
 			// If distance is greater than kernel radius (h)
 			if (r > m_h) {
-				m_grads[j] = Eigen::Vector2d(0.0f);
+				m_grads[neighbor_ix] = Eigen::Vector2d(0.0f);
 			}
 			else {
 				float r2 = r * r;
@@ -131,7 +191,7 @@ void FluidSim::solveFluids() {
 				rho += m_POLY6 * w * w * w;
 				float grad = (m_POLY6 * 3.0f * w * w * (-2.0f * r)) / m_rho0;
 
-				m_grads[j] = n * grad;
+				m_grads[neighbor_ix] = n * grad;
 
 				grad_i -= n * grad;
 				sum_grad2 += grad * grad;
@@ -147,15 +207,15 @@ void FluidSim::solveFluids() {
 		
 		float lambda = -c / (sum_grad2 + 0.0001);
 
-		for (int j=0; j < num_neighbors; j++) {
-			int id = first_neighbor + j; // neighbor id
+		for (int neighbor_ix=0; neighbor_ix < neighbors[i].size(); neighbor_ix++) {
+			int id = neighbors[i][neighbor_ix];
 			Particle p_j = particles[id];
 
-			if (id == 1) {
+			if (id == i) {
 				p_j.x += lambda * grad_i;
 			}
 			else {
-				p_j.x += lambda * m_grads[j];
+				p_j.x += lambda * m_grads[neighbor_ix];
 			}
 		}
 
@@ -171,7 +231,7 @@ void FluidSim::solveBoundaries() {
 		if (p_i.x(1) < 0.0f) {
 			p_i.x(1) = 0.0f;
 		}
-		p_i.x(0) = clamp(p_i.x(0), 0.0, (double)m_res_x);
+		p_i.x(0) = std::clamp(p_i.x(0), 0.0, (double)m_res_x);
 
 		// More boundary checks?
 	}

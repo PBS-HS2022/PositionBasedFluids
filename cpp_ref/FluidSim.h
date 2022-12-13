@@ -56,7 +56,7 @@ public:
 		m_VISC_LAP = 40.f / (M_PI * pow(m_h, 5.f));
 		m_G = Eigen::Vector2d(0.f, -9.81f);
 
-		m_grads = std::vector<Eigen::Vector2d>(m_NUM_PARTICLES, Eigen::Vector2d(0.0f));
+		m_grads = std::vector<Eigen::Vector2d>(m_NUM_PARTICLES, Eigen::Vector2d(0.0f, 0.0f));
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
 
@@ -311,6 +311,7 @@ public:
 
 #pragma region SPH
 	void initSPH(double xmin, double xmax, double ymin, double ymax);
+	std::vector<std::vector<int>> findNeighbors();
 	void integrateSPH();
 	void computePressureSPH();
 	void computeForcesSPH();
