@@ -32,7 +32,7 @@ public:
 		m_dt = 0.005 * sqrt((m_res_x + m_res_y) * 0.5);
 		// m_dt = 0.01;
 		m_acc = 1e-5;
-		m_iter = 1000;
+		m_iter = 10;
 		m_field = 0;
 		m_velocityOn = false;
 		m_vScale = 20;
@@ -44,9 +44,9 @@ public:
 
 		m_mass = 2.5f;
 		m_k = 100.0f;
-		m_h = 2.0f;
+		m_h = 4.f;
 		m_rho0 = 0.3f;
-		m_visc_cons = 0.2f;
+		m_visc_cons = 0.f;
 
 		// m_POLY6 = 315.0f / (64.0f * M_PI * pow(m_h, 9.0f));
 		m_POLY6 = 4.f / (M_PI * pow(m_h, 8.f));
@@ -55,6 +55,8 @@ public:
 		// m_VISC_LAP = 45.0f / (M_PI * pow(m_h, 6.0f));
 		m_VISC_LAP = 40.f / (M_PI * pow(m_h, 5.f));
 		m_G = Eigen::Vector2d(0.f, -9.81f);
+
+		m_grads = std::vector<Eigen::Vector2d>(m_NUM_PARTICLES, Eigen::Vector2d(0.0f, 0.0f));
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
 
@@ -126,8 +128,9 @@ public:
 		// // reset forces
 		// p_force->reset();
 
-		computePressureSPH();
-		computeForcesSPH();
+		// computePressureSPH();
+		// computeForcesSPH();
+		// solveFluids();
 		integrateSPH();
 
 		// advance m_time
@@ -308,9 +311,13 @@ public:
 
 #pragma region SPH
 	void initSPH(double xmin, double xmax, double ymin, double ymax);
+	std::vector<std::vector<int>> findNeighbors();
 	void integrateSPH();
 	void computePressureSPH();
 	void computeForcesSPH();
+	void solveFluids(std::vector<std::vector<int>> * neighbors);
+	void solveBoundaries();
+	void applyViscosity(std::vector<std::vector<int>> * neighbors, int i);
 #pragma endregion SPH
 
 #pragma region SettersAndGetters
@@ -323,6 +330,11 @@ public:
 	void setIteration(int iter) { m_iter = iter; }
 	void setWind(bool w) { m_windOn = w; }
 	void setMacCormack(bool m) { m_macOn = m; }
+
+	void setNumParticles(int num) { m_NUM_PARTICLES = num; }
+	void setKernelRadius(float h) { m_h = h; }
+	void setVisc(float v) { m_visc_cons = v; }
+	void setRestDensity(float rho) { m_rho0 = rho; }
 
 	//shared_ptr<ParticlesData> getParticlesData() {
 	//	return m_pParticleData;
@@ -338,6 +350,14 @@ public:
 	bool getWind() const { return m_windOn; }
 	bool getMacCormack() const { return m_macOn; }
 	double getTimestep() const { return m_dt; }
+
+	int getNumParticles() const { return m_NUM_PARTICLES; }
+	float getKernelRadius() const { return m_h; }
+	float getVisc() const { return m_visc_cons; }
+	float getRestDensity() const { return m_rho0; }
+
+	Eigen::MatrixXd getVertices() const { return m_renderV;  }
+	Eigen::MatrixXi getFaces() const { return m_renderF; }
 #pragma endregion SettersAndGetters
 
 private:
@@ -364,6 +384,8 @@ private:
 	float m_VISC_LAP;
 	Eigen::Vector2d m_G;
 
+	std::vector<Eigen::Vector2d> m_grads;
+
 	Grid2* p_density;
 	Grid2* p_pressure;
 	Grid2* p_divergence;
@@ -376,6 +398,10 @@ private:
 	Eigen::MatrixXd m_renderC; // face (or vertex) colors for rendering
 
 	vector<Particle> particles;
+	double m_xmin;
+	double m_xmax;
+	double m_ymin;
+	double m_ymax;
 
 	//shared_ptr<ParticlesData> m_pParticleData;
 };
