@@ -63,7 +63,7 @@ public:
 	}
 
 	void set_m_x(int x, int y) {
-		std::cout << m_res_x << " " << m_res_y << std::endl;
+		// std::cout << m_res_x << " " << m_res_y << std::endl;
 		m_x(x,y) = 0.5;
 	}
 
