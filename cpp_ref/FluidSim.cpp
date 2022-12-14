@@ -112,7 +112,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 		return Eigen::Vector2i((int)floor(particle_pos.x() / m_dx), (int)floor(particle_pos.y() / m_dx));
 	};
 
-	// 1D Hashtable representing spatial coordinates. The value in each cell
+	// 2D Hashtable representing spatial coordinates. The value in each cell
 	// is a vector of all particle (global indices) that exist in that grid
 	// location. If there are no particles at that grid cell, the vector is of
 	// size zero.
@@ -244,8 +244,6 @@ void FluidSim::integrateSPH() {
 	// Array2d d_tmp(p_density->x());
 	p_density->reset();
 
-	std::vector<std::vector<int>> neighbour_indices(particles.size());
-
 	// Values of C for each particle, calculated with equation 1 in PBF
 	std::vector<float> density_constraints(particles.size());
 
@@ -272,40 +270,17 @@ void FluidSim::integrateSPH() {
 
 		// Create the density constraint for each particle
 		density_constraints[i] = (p_i.rho - m_rho0) - 1;
-
-
-		// row length in particle grid
-		int rowLen = (int)((m_xmax - m_xmin) * m_res_x);
-
-		// Store the indices for the neighbours, assuming square grid
-		for (int x : {-1, 0, 1}) {
-			for (int y : {-rowLen, 0, rowLen}) {
-				if (i + x + y >= 0 && i + x + y < particles.size()) {
-					neighbour_indices[i].push_back(i + x + y);
-				}
-			}
-		}
-		// neighbour_indices[i] = {
-		// 	i,
-		// 	(i - 1) % (int)particles.size(),
-		// 	(i + 1) % (int)particles.size(),
-		// 	(i - rowLen) % (int)particles.size(),
-		// 	(i + rowLen) % (int)particles.size(),
-		// 	(i - 1 - rowLen) % (int)particles.size(),
-		// 	(i - 1 + rowLen) % (int)particles.size(),
-		// 	(i + 1 - rowLen) % (int)particles.size(),
-		// 	(i + 1 + rowLen) % (int)particles.size()
-		// };
 	}
 
 	// TODO : BOUNDARY CHECKING HERE
 
 	// cout << "CONSTRAINT LOOP" << endl;
 	// Iterate to solve the constraints
-	for (int iteration = 0; iteration < 10; iteration++) {
+	for (int iteration = 0; iteration < getIteration(); iteration++) {
 		//Euler step? Maybe...
 
 		// Solve fluids here
+		solveBoundaries();
 		solveFluids();
 
 		// For each particle, calculate lambda
@@ -385,21 +360,17 @@ void FluidSim::integrateSPH() {
 	// And confirm the positions
 	int ctr = 0;
 	// cout << "FINAL LOOP" << endl;
-	for (auto &p_i : particles) {
+	for (auto &p : particles) {
 		// cout << "START OF LOOP: " << p_i.x << endl;
-		p_i.v = 1 / m_dt * (new_x[ctr] - p_i.x);
-		p_i.x = new_x[ctr];
-		cout << "After update new_x: " << p_i.x << endl;
+		p.v = 1 / m_dt * (new_x[ctr] - p.x);
+		p.x = new_x[ctr];
+		cout << "New position of particle " << ctr << "/" << particles.size() << ": " << p.x.transpose().format(Eigen::IOFormat(2, 0, ", ")) << " and its velocity: " << p.v.transpose().format(Eigen::IOFormat(2, 0, ", ")) << endl;
 		ctr++;
-		
-		// yuto: why is this needed?
-		// also we aren't checking if p_i.x.x() and y() are within
-		// the p_density min/max bounds, this might cause segfaults
+
 		// =================================================
 		// ================ boundary checks ================
 		// =================================================
 		const float DAMP = 0.75;
-		Particle p = p_i;
 
 		int x_coord = (int)p.x.x();
 		int y_coord = (int)p.x.y();
@@ -476,7 +447,8 @@ void FluidSim::integrateSPH() {
 
 		// Update grid positions
 		// std::cout << p.x << std::endl;
-		// std::cout << abs((int)p.x.x()) % m_res_x << " " << abs((int)p.x.y()) % m_res_y << std::endl;
+		std::cout << "%: " << abs((int)p.x.x()) % m_res_x << " " << abs((int)p.x.y()) % m_res_y << std::endl;
+		std::cout << "From .cpp: " << m_res_x << " " << m_res_y << std::endl;
 		p_density->set_m_x(abs((int)p.x.x()) % m_res_x, abs((int)p.x.y()) % m_res_y);
 	}
 	// yuto: removed stuff down here for debugging, check git log
