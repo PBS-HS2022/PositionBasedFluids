@@ -235,6 +235,82 @@ void FluidSim::solveBoundaries() {
 		if (p_i.x(0) > m_res_x) p_i.x(0) = m_res_x;
 
 		// More boundary checks?
+		// const float DAMP = 0.5;
+
+		// int x_coord = (int)p_i.x.x();
+		// int y_coord = (int)p_i.x.y();
+
+		// Left & Right Walls
+		// if (p_i.v(0) != 0.0f) {
+		// 	// Left 
+		// 	if (x_coord < m_h) {
+		// 		float tbounce = (p_i.x(0) - m_h) / p_i.v(0);
+
+		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
+		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
+
+		// 		p_i.x(0) = 2 * m_h - p_i.x(0);
+		// 		p_i.v(0) = -p_i.v(0) * DAMP;
+		// 		p_i.v(1) *= DAMP;
+
+		// 		// p.v(0) *= DAMP;
+		// 		// p.x(0) = m_h;
+		// 	}
+		// }
+
+		// if (p_i.v(0) != 0.0f) {
+		// 	// Right
+		// 	if (x_coord > m_res_x - m_h) {
+		// 		float tbounce = (p_i.x(0) - m_res_x + m_h) / p_i.v(0);
+
+		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
+		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
+
+		// 		p_i.x(0) = 2*(m_res_x - m_h) - p_i.x(0);
+		// 		p_i.v(0) = -p_i.v(0) * DAMP;
+		// 		p_i.v(1) *= DAMP;
+
+		// 		// p.v(0) *= DAMP;
+		// 		// p.x(0) = m_res_x - m_h;
+		// 	}
+		// }	
+
+		// // Bottom and Top Boundaries
+		// if (p_i.v(1) != 0.0f) {
+		// 	// Bottom
+		// 	if (y_coord < m_h) {
+		// 		float tbounce = (p_i.x(1) - m_h) / p_i.v(1);
+
+		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
+		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
+
+		// 		p_i.x(1) = 2 * m_h - p_i.x(1);
+		// 		p_i.v(1) = -p_i.v(1) * DAMP;
+		// 		p_i.v(0) *= DAMP;
+
+		// 		// p.v(1) *= DAMP;
+		// 		// p.x(1) = m_h;
+		// 	}
+		// }
+
+		// if (p_i.v(1) != 0.0f) {
+		// 	// Top
+		// 	if (y_coord > m_res_y - m_h) {
+		// 		float tbounce = (p_i.x(1) - m_res_x + m_h) / p_i.v(1);
+
+		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
+		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
+
+		// 		p_i.x(1) = 2*(m_res_y - m_h) - p_i.x(1);
+		// 		p_i.v(1) = -p_i.v(1) * DAMP;
+		// 		p_i.v(0) *= DAMP;
+
+		// 		// p.v(1) *= DAMP;
+		// 		// p.x(1) = m_res_y - m_h;
+		// 	}
+		// }
+
+
 		int x_coord = (int)p_i.x.x();
 		int y_coord = (int)p_i.x.y();
 
@@ -348,8 +424,8 @@ void FluidSim::integrateSPH() {
 			Eigen::Vector2d v = particles[i].x - prevPos[i];
 			double vel = v.norm();
 
-			if (vel > 0.1) {
-				v *= 0.1 / vel;
+			if (vel > 0.4) {
+				v *= 0.4 / vel;
 				particles[i].x = prevPos[i] + v;
 			}
 
