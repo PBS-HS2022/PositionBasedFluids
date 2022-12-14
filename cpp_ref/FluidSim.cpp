@@ -122,7 +122,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 		Particle p_i = particles[i];
 		// Find the spatial hash and append the particle global index to the
 		// vector at that collection grid.
-		splatted_grid[get_grid_hash(get_nearest_grid(p_i.x))].push_back(i);
+		splatted_grid[get_grid_hash(get_nearest_grid(particles[i].x))].push_back(i);
 	}
 
 	// Now go through each particle, find the spatial hash, and get the other
@@ -143,7 +143,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 				// opposite diagonal ends in a cell.
 				auto this_grid_hash = get_grid_hash(Eigen::Vector2i(x, y));
 				for (int j : splatted_grid[this_grid_hash]) {
-					if ((particles[j].x - p_i.x).squaredNorm() < m_dx) {
+					if ((particles[j].x - particles[i].x).squaredNorm() < (m_h * m_h * 1.5 * 1.5)) {
 						neighbors[i].push_back(j);
 					}
 				}
@@ -160,7 +160,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 // =================================================
 void FluidSim::solveFluids(std::vector<std::vector<int>> neighbors) {
 	for (int i=0; i < particles.size(); i++) {
-		Particle p_i = particles[i];
+		// Particle p_i = particles[i];
 
 		// Initial values
 		float rho = 0.0f;
@@ -170,9 +170,9 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> neighbors) {
 		// Loop through neighbors
 		for (int neighbor_ix=0; neighbor_ix < neighbors[i].size(); neighbor_ix++) {
 			int id = neighbors[i][neighbor_ix];
-			Particle p_j = particles[id];
+			// Particle p_j = particles[id];
 			//Calculate distance between particles
-			Eigen::Vector2d n = p_j.x - p_i.x; 
+			Eigen::Vector2d n = particles[id].x - particles[i].x; 
 			float r = n.norm();
 
 			// normalize
@@ -211,10 +211,10 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> neighbors) {
 			Particle p_j = particles[id];
 
 			if (id == i) {
-				p_j.x += lambda * grad_i;
+				particles[id].x += lambda * grad_i;
 			}
 			else {
-				p_j.x += lambda * m_grads[neighbor_ix];
+				particles[id].x += lambda * m_grads[neighbor_ix];
 			}
 		}
 
@@ -239,25 +239,25 @@ void FluidSim::solveBoundaries() {
 		int y_coord = (int)p_i.x.y();
 
 		// Left
-		if (x_coord <= 0) {
+		if (x_coord <= m_h) {
 			p_i.v(0) *= -0.5f;
 			p_i.x(0) = m_h;
 		}
 
 		// Right
-		if (x_coord >= m_res_x) {
+		if (x_coord >= m_res_x - m_h) {
 			p_i.v(0) *= -0.5f;
 			p_i.x(0) = m_res_x - m_h;
 		}
 
 		// Bottom
-		if (y_coord <= 0) {
+		if (y_coord <= m_h) {
 			p_i.v(1) *= -0.5f;
 			p_i.x(1) = m_h;
 		}
 
 		// Top
-		if (y_coord >= m_res_y) {
+		if (y_coord >= m_res_y - m_h) {
 			p_i.v(1) *= -0.5f;
 			p_i.x(1) = m_res_y - m_h;
 		}
@@ -326,12 +326,14 @@ void FluidSim::integrateSPH() {
 		//Euler step? Maybe...
 		std::vector<Eigen::Vector2d> prevPos(m_NUM_PARTICLES);
 		for (int i = 0; i < particles.size(); i++) {
-			Particle p_i = particles[i];
+			// Particle p_i = particles[i];
 
 			// Symplectic euler step with damping
-			p_i.v += dt * m_G;
-			prevPos[i] = p_i.x;
-			p_i.x += dt * p_i.v;
+			prevPos[i] = particles[i].x;
+			// cout << "BEFORE: velocity: " << p_i.v << " -> position: " << p_i.x << " -> prevPos: " << prevPos[i] << endl;
+			particles[i].v += dt * m_G;
+			particles[i].x += dt * particles[i].v;
+			// cout << "AFTER: velocity: " << p_i.v << " -> position: " << p_i.x << " -> prevPos: " << prevPos[i] << endl;
 		}
 
 		// Solve fluids here
@@ -340,21 +342,23 @@ void FluidSim::integrateSPH() {
 
 		// derive velocities
 		for (int i=0; i < particles.size(); i++) {
-			Particle p_i = particles[i];
-			Eigen::Vector2d v = p_i.x - prevPos[i];
-			float vel = v.norm();
+			// Particle p_i = particles[i];
+			// cout << "Previous position: " << prevPos[i] << endl;
+			// cout << "Current Position: " << particles[i].x << endl;
+			Eigen::Vector2d v = particles[i].x - prevPos[i];
+			double vel = v.norm();
 
-			if (vel > 0.004) {
-				v *= 0.004 / vel;
-				p_i.x = prevPos[i] + v;
+			if (vel > 0.1) {
+				v *= 0.1 / vel;
+				particles[i].x = prevPos[i] + v;
 			}
 
-			p_i.v = v / dt;
+			particles[i].v = v / dt;
 
 			// apply viscosity
 			applyViscosity(neighbors, i);
 			// std::cout << "%: " << abs((int)p_i.x.x()) % m_res_x << " " << abs((int)p_i.x.y()) % m_res_y << std::endl;
-			p_density->set_m_x(abs((int)p_i.x.x()) % m_res_x, abs((int)p_i.x.y()) % m_res_y);
+			p_density->set_m_x(abs((int)particles[i].x.x()) % m_res_x, abs((int)particles[i].x.y()) % m_res_y);
 		}
 		
 

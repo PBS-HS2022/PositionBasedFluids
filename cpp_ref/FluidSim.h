@@ -40,13 +40,13 @@ public:
 		m_macOn = true;
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
-		m_NUM_PARTICLES = 100;
+		m_NUM_PARTICLES = 400;
 
 		m_mass = 2.5f;
 		m_k = 100.0f;
-		m_h = 0.03f;
+		m_h = 4.f;
 		m_rho0 = 0.3f;
-		m_visc_cons = 0.2f;
+		m_visc_cons = 0.f;
 
 		// m_POLY6 = 315.0f / (64.0f * M_PI * pow(m_h, 9.0f));
 		m_POLY6 = 4.f / (M_PI * pow(m_h, 8.f));
@@ -330,6 +330,7 @@ public:
 	void setIteration(int iter) { m_iter = iter; }
 	void setWind(bool w) { m_windOn = w; }
 	void setMacCormack(bool m) { m_macOn = m; }
+	void setKernelRadius(float h) { m_h = h; }
 
 	//shared_ptr<ParticlesData> getParticlesData() {
 	//	return m_pParticleData;
@@ -345,6 +346,9 @@ public:
 	bool getWind() const { return m_windOn; }
 	bool getMacCormack() const { return m_macOn; }
 	double getTimestep() const { return m_dt; }
+
+	float getKernelRadius() const { return m_h; }
+
 	Eigen::MatrixXd getVertices() const { return m_renderV;  }
 	Eigen::MatrixXi getFaces() const { return m_renderF; }
 #pragma endregion SettersAndGetters

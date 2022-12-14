@@ -12,6 +12,7 @@
 class FluidGui : public Gui {
 public:
 	float m_dt;
+	float m_h;
 	float m_acc;
 	int m_iter;
 	float m_vScale;
@@ -32,6 +33,7 @@ public:
 
 		p_fluidSim = new FluidSim();
 		m_dt = p_fluidSim->getTimestep();
+		m_h = p_fluidSim->getKernelRadius();
 		m_acc = p_fluidSim->getAccuracy();
 		m_iter = p_fluidSim->getIteration();
 		m_vScale = p_fluidSim->getVelocityScale();
@@ -53,6 +55,7 @@ public:
 		p_fluidSim->setTimestep(m_dt);
 		p_fluidSim->setAccuracy(m_acc);
 		p_fluidSim->setIteration(m_iter);
+		p_fluidSim->setKernelRadius(m_h);
 	}
 
 	virtual void clearSimulation() override {
@@ -73,6 +76,7 @@ public:
 		}
 		ImGui::InputFloat("v scale", &m_vScale, 0, 0);
 		ImGui::InputFloat("dt", &m_dt, 0, 0);
+		ImGui::InputFloat("kernel radius", &m_h, 0, 0);
 		ImGui::InputFloat("accuracy", &m_acc, 0, 0, 5);
 		ImGui::InputInt("iter", &m_iter, 0, 0);
 		if (ImGui::Checkbox("Wind", &m_windOn))
