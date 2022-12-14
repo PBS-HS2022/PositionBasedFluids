@@ -40,7 +40,7 @@ public:
 		m_macOn = true;
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
-		m_NUM_PARTICLES = 2500;
+		m_NUM_PARTICLES = 10;
 
 		m_mass = 2.5f;
 		m_k = 100.0f;

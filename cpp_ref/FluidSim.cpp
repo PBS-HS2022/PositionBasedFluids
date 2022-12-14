@@ -1,5 +1,5 @@
 #include "FluidSim.h"
-#include <algorithm>
+// #include <algorithm>
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++
 // ++++++++++++++ SPH FUNCTIONS ++++++++++++++++++++
@@ -231,7 +231,9 @@ void FluidSim::solveBoundaries() {
 		if (p_i.x(1) < 0.0f) {
 			p_i.x(1) = 0.0f;
 		}
-		p_i.x(0) = std::clamp(p_i.x(0), 0.0, (double)m_res_x);
+
+		if (p_i.x(0) < 0.0f) p_i.x(0) = 0.0f;
+		if (p_i.x(0) > m_res_x) p_i.x(0) = m_res_x;
 
 		// More boundary checks?
 	}
@@ -364,95 +366,126 @@ void FluidSim::integrateSPH() {
 		// cout << "START OF LOOP: " << p_i.x << endl;
 		p.v = 1 / m_dt * (new_x[ctr] - p.x);
 		p.x = new_x[ctr];
-		cout << "New position of particle " << ctr << "/" << particles.size() << ": " << p.x.transpose().format(Eigen::IOFormat(2, 0, ", ")) << " and its velocity: " << p.v.transpose().format(Eigen::IOFormat(2, 0, ", ")) << endl;
+		// cout << "New position of particle " << ctr << "/" << particles.size() << ": " << p.x.transpose().format(Eigen::IOFormat(2, 0, ", ")) << " and its velocity: " << p.v.transpose().format(Eigen::IOFormat(2, 0, ", ")) << endl;
 		ctr++;
 
 		// =================================================
 		// ================ boundary checks ================
 		// =================================================
-		const float DAMP = 0.75;
-
 		int x_coord = (int)p.x.x();
 		int y_coord = (int)p.x.y();
 
-		// Left & Right Walls
-		if (p.v(0) != 0.0f) {
-			// Left 
-			if (x_coord < m_h) {
-				float tbounce = (p.x(0) - m_h) / p.v(0);
-
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
-
-				p.x(0) = 2 * m_h - p.x(0);
-				p.v(0) = -p.v(0) * DAMP;
-				p.v(1) *= DAMP;
-
-				// p.v(0) *= DAMP;
-				// p.x(0) = m_h;
-			}
+		// Left
+		if (x_coord <= 0) {
+			p.v(0) *= -0.5f;
+			p.x(0) = m_h;
 		}
 
-		if (p.v(0) != 0.0f) {
-			// Right
-			if (x_coord > m_res_x - m_h) {
-				float tbounce = (p.x(0) - m_res_x + m_h) / p.v(0);
-
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
-
-				p.x(0) = 2*(m_res_x - m_h) - p.x(0);
-				p.v(0) = -p.v(0) * DAMP;
-				p.v(1) *= DAMP;
-
-				// p.v(0) *= DAMP;
-				// p.x(0) = m_res_x - m_h;
-			}
-		}	
-
-		// Bottom and Top Boundaries
-		if (p.v(1) != 0.0f) {
-			// Bottom
-			if (y_coord < m_h) {
-				float tbounce = (p.x(1) - m_h) / p.v(1);
-
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
-
-				p.x(1) = 2 * m_h - p.x(1);
-				p.v(1) = -p.v(1) * DAMP;
-				p.v(0) *= DAMP;
-
-				// p.v(1) *= DAMP;
-				// p.x(1) = m_h;
-			}
+		// Right
+		if (x_coord >= m_res_x) {
+			p.v(0) *= -0.5f;
+			p.x(0) = m_res_x - m_h;
 		}
 
-		if (p.v(1) != 0.0f) {
-			// Top
-			if (y_coord > m_res_y - m_h) {
-				float tbounce = (p.x(1) - m_res_x + m_h) / p.v(1);
+		// Bottom
+		if (y_coord <= 0) {
+			p.v(1) *= -0.5f;
+			p.x(1) = m_h;
+		}
 
-				p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
-				p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
-
-				p.x(1) = 2*(m_res_y - m_h) - p.x(1);
-				p.v(1) = -p.v(1) * DAMP;
-				p.v(0) *= DAMP;
-
-				// p.v(1) *= DAMP;
-				// p.x(1) = m_res_y - m_h;
-			}
+		// Top
+		if (y_coord >= m_res_y) {
+			p.v(1) *= -0.5f;
+			p.x(1) = m_res_y - m_h;
 		}
 
 		// Update grid positions
 		// std::cout << p.x << std::endl;
-		std::cout << "%: " << abs((int)p.x.x()) % m_res_x << " " << abs((int)p.x.y()) % m_res_y << std::endl;
-		std::cout << "From .cpp: " << m_res_x << " " << m_res_y << std::endl;
+		// std::cout << "x: " << p.x.x() << " y: " << p.x.y() << endl;
+		// std::cout << "abs: " << abs((int)p.x.x()) << " " << abs((int)p.x.y()) << std::endl;
+		// std::cout << "%: " << abs((int)p.x.x()) % m_res_x << " " << abs((int)p.x.y()) % m_res_y << std::endl;
+		// std::cout << "From .cpp: " << m_res_x << " " << m_res_y << std::endl;
 		p_density->set_m_x(abs((int)p.x.x()) % m_res_x, abs((int)p.x.y()) % m_res_y);
 	}
 	// yuto: removed stuff down here for debugging, check git log
-	std::cout << "here" << std::endl;
+	// std::cout << "here" << std::endl;
 
 	// p_density->x() = d_tmp;
 }
+
+
+// BOUNDARY CHECKS THAT DON'T WORK
+// const float DAMP = 0.75;
+
+// int x_coord = (int)p.x.x();
+// int y_coord = (int)p.x.y();
+
+// // Left & Right Walls
+// if (p.v(0) != 0.0f) {
+// 	// Left 
+// 	if (x_coord < m_h) {
+// 		float tbounce = (p.x(0) - m_h) / p.v(0);
+
+// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+// 		p.x(0) = 2 * m_h - p.x(0);
+// 		p.v(0) = -p.v(0) * DAMP;
+// 		p.v(1) *= DAMP;
+
+// 		// p.v(0) *= DAMP;
+// 		// p.x(0) = m_h;
+// 	}
+// }
+
+// if (p.v(0) != 0.0f) {
+// 	// Right
+// 	if (x_coord > m_res_x - m_h) {
+// 		float tbounce = (p.x(0) - m_res_x + m_h) / p.v(0);
+
+// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+// 		p.x(0) = 2*(m_res_x - m_h) - p.x(0);
+// 		p.v(0) = -p.v(0) * DAMP;
+// 		p.v(1) *= DAMP;
+
+// 		// p.v(0) *= DAMP;
+// 		// p.x(0) = m_res_x - m_h;
+// 	}
+// }	
+
+// // Bottom and Top Boundaries
+// if (p.v(1) != 0.0f) {
+// 	// Bottom
+// 	if (y_coord < m_h) {
+// 		float tbounce = (p.x(1) - m_h) / p.v(1);
+
+// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+// 		p.x(1) = 2 * m_h - p.x(1);
+// 		p.v(1) = -p.v(1) * DAMP;
+// 		p.v(0) *= DAMP;
+
+// 		// p.v(1) *= DAMP;
+// 		// p.x(1) = m_h;
+// 	}
+// }
+
+// if (p.v(1) != 0.0f) {
+// 	// Top
+// 	if (y_coord > m_res_y - m_h) {
+// 		float tbounce = (p.x(1) - m_res_x + m_h) / p.v(1);
+
+// 		p.x(0) -= p.v(0) * (1 - DAMP) * tbounce;
+// 		p.x(1) -= p.v(1) * (1 - DAMP) * tbounce;
+
+// 		p.x(1) = 2*(m_res_y - m_h) - p.x(1);
+// 		p.v(1) = -p.v(1) * DAMP;
+// 		p.v(0) *= DAMP;
+
+// 		// p.v(1) *= DAMP;
+// 		// p.x(1) = m_res_y - m_h;
+// 	}
+// }
