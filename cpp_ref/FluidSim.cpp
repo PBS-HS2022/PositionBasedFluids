@@ -227,12 +227,12 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 void FluidSim::solveBoundaries() {
 	for (auto &p_i : particles) {
 		// Clamp positions to edges if it goes beyond
-		if (p_i.x(1) < 0.0f) {
-			p_i.x(1) = 0.0f;
-		}
+		// if (p_i.x(1) < 0.0f) {
+		// 	p_i.x(1) = 0.0f;
+		// }
 
-		if (p_i.x(0) < 0.0f) p_i.x(0) = 0.0f;
-		if (p_i.x(0) > m_res_x) p_i.x(0) = m_res_x;
+		// if (p_i.x(0) < 0.0f) p_i.x(0) = 0.0f;
+		// if (p_i.x(0) > m_res_x) p_i.x(0) = m_res_x;
 
 		// More boundary checks?
 		// const float DAMP = 0.5;
@@ -345,12 +345,12 @@ void FluidSim::solveBoundaries() {
 // ============= Apply Viscosity ===================
 // =================================================
 void FluidSim::applyViscosity(std::vector<std::vector<int>> * neighbors, int i) {
-	if (neighbors[i].size() == 0) return;
+	if ((*neighbors)[i].size() == 0) return;
 	Eigen::Vector2d avg_vel = Eigen::Vector2d(0.0f, 0.0f);
 	for (int id : (*neighbors)[i]) {
 		avg_vel += particles[id].v;
 	}
-	avg_vel /= neighbors[i].size();
+	avg_vel /= (*neighbors)[i].size();
 	Eigen::Vector2d delta = avg_vel - particles[i].v;
 	particles[i].v += m_visc_cons * delta;
 }
@@ -408,6 +408,7 @@ void FluidSim::integrateSPH() {
 			prevPos[i] = particles[i].x;
 			// cout << "BEFORE: velocity: " << p_i.v << " -> position: " << p_i.x << " -> prevPos: " << prevPos[i] << endl;
 			particles[i].v += dt * m_G;
+			// particles[i].v += dt * particles[i].f / particles[i].rho;
 			particles[i].x += dt * particles[i].v;
 			// cout << "AFTER: velocity: " << p_i.v << " -> position: " << p_i.x << " -> prevPos: " << prevPos[i] << endl;
 		}
@@ -424,8 +425,8 @@ void FluidSim::integrateSPH() {
 			Eigen::Vector2d v = particles[i].x - prevPos[i];
 			double vel = v.norm();
 
-			if (vel > 0.4) {
-				v *= 0.4 / vel;
+			if (vel > 0.1) {
+				v *= 0.1 / vel;
 				particles[i].x = prevPos[i] + v;
 			}
 
