@@ -330,7 +330,11 @@ public:
 	void setIteration(int iter) { m_iter = iter; }
 	void setWind(bool w) { m_windOn = w; }
 	void setMacCormack(bool m) { m_macOn = m; }
+
+	void setNumParticles(int num) { m_NUM_PARTICLES = num; }
 	void setKernelRadius(float h) { m_h = h; }
+	void setVisc(float v) { m_visc_cons = v; }
+	void setRestDensity(float rho) { m_rho0 = rho; }
 
 	//shared_ptr<ParticlesData> getParticlesData() {
 	//	return m_pParticleData;
@@ -347,7 +351,10 @@ public:
 	bool getMacCormack() const { return m_macOn; }
 	double getTimestep() const { return m_dt; }
 
+	int getNumParticles() const { return m_NUM_PARTICLES; }
 	float getKernelRadius() const { return m_h; }
+	float getVisc() const { return m_visc_cons; }
+	float getRestDensity() const { return m_rho0; }
 
 	Eigen::MatrixXd getVertices() const { return m_renderV;  }
 	Eigen::MatrixXi getFaces() const { return m_renderF; }
