@@ -158,8 +158,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 // =================================================
 // ============== Solve Fluids =====================
 // =================================================
-void FluidSim::solveFluids() {
-	std::vector<std::vector<int>> neighbors = findNeighbors();
+void FluidSim::solveFluids(std::vector<std::vector<int>> neighbors) {
 	for (int i=0; i < particles.size(); i++) {
 		Particle p_i = particles[i];
 
@@ -236,8 +235,50 @@ void FluidSim::solveBoundaries() {
 		if (p_i.x(0) > m_res_x) p_i.x(0) = m_res_x;
 
 		// More boundary checks?
+		int x_coord = (int)p_i.x.x();
+		int y_coord = (int)p_i.x.y();
+
+		// Left
+		if (x_coord <= 0) {
+			p_i.v(0) *= -0.5f;
+			p_i.x(0) = m_h;
+		}
+
+		// Right
+		if (x_coord >= m_res_x) {
+			p_i.v(0) *= -0.5f;
+			p_i.x(0) = m_res_x - m_h;
+		}
+
+		// Bottom
+		if (y_coord <= 0) {
+			p_i.v(1) *= -0.5f;
+			p_i.x(1) = m_h;
+		}
+
+		// Top
+		if (y_coord >= m_res_y) {
+			p_i.v(1) *= -0.5f;
+			p_i.x(1) = m_res_y - m_h;
+		}
 	}
 }
+
+
+// =================================================
+// ============= Apply Viscosity ===================
+// =================================================
+void FluidSim::applyViscosity(std::vector<std::vector<int>> neighbors, int i) {
+	if (neighbors[i].size() == 0) return;
+	Eigen::Vector2d avg_vel = Eigen::Vector2d(0.0f, 0.0f);
+	for (int id : neighbors[i]) {
+		avg_vel += particles[id].v;
+	}
+	avg_vel /= neighbors[i].size();
+	Eigen::Vector2d delta = avg_vel - particles[i].v;
+	particles[i].v += m_visc_cons * delta;
+}
+
 
 // =================================================
 // ===== SPH Integration and boundary checks =======
@@ -247,43 +288,75 @@ void FluidSim::integrateSPH() {
 	p_density->reset();
 
 	// Values of C for each particle, calculated with equation 1 in PBF
-	std::vector<float> density_constraints(particles.size());
+	// std::vector<float> density_constraints(particles.size());
 
 	// Values of lambda for each particle, calculated with equation 8 and 9 in PBF
-	std::vector<float> lambda(particles.size());
+	// std::vector<float> lambda(particles.size());
 
 	// The change in position, for each particle
-	std::vector<Eigen::Vector2d> delta_x(particles.size());
+	// std::vector<Eigen::Vector2d> delta_x(particles.size());
 
 	// Values of the new positions for each particle, to be compared with the current one
-	std::vector<Eigen::Vector2d> new_x(particles.size());
+	// std::vector<Eigen::Vector2d> new_x(particles.size());
 
 	// Wondering if for_each is better than an explicit for loop
 	// cout << "FIRST LOOP" << endl;
-	for (int i = 0; i < particles.size(); i++) {
-		Particle p_i = particles[i];
+	// for (int i = 0; i < particles.size(); i++) {
+	// 	Particle p_i = particles[i];
 
-		// Symplectic euler step with damping
-		p_i.v += m_dt * p_i.f / p_i.rho;
-		p_i.x += m_dt * p_i.v;
+	// 	// Symplectic euler step with damping
+	// 	p_i.v += m_dt * p_i.f / p_i.rho;
+	// 	p_i.x += m_dt * p_i.v;
 
-		// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
-		// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
+	// 	// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
+	// 	// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
 
-		// Create the density constraint for each particle
-		density_constraints[i] = (p_i.rho - m_rho0) - 1;
-	}
+	// 	// Create the density constraint for each particle
+	// 	density_constraints[i] = (p_i.rho - m_rho0) - 1;
+	// }
 
 	// TODO : BOUNDARY CHECKING HERE
 
+	std::vector<std::vector<int>> neighbors = findNeighbors();
+	int num_substeps = getIteration();
+	float dt = m_dt / num_substeps;
 	// cout << "CONSTRAINT LOOP" << endl;
 	// Iterate to solve the constraints
-	for (int iteration = 0; iteration < getIteration(); iteration++) {
+	for (int iteration = 0; iteration < num_substeps; iteration++) {
 		//Euler step? Maybe...
+		std::vector<Eigen::Vector2d> prevPos(m_NUM_PARTICLES);
+		for (int i = 0; i < particles.size(); i++) {
+			Particle p_i = particles[i];
+
+			// Symplectic euler step with damping
+			p_i.v += dt * m_G;
+			prevPos[i] = p_i.x;
+			p_i.x += dt * p_i.v;
+		}
 
 		// Solve fluids here
 		solveBoundaries();
-		solveFluids();
+		solveFluids(neighbors);
+
+		// derive velocities
+		for (int i=0; i < particles.size(); i++) {
+			Particle p_i = particles[i];
+			Eigen::Vector2d v = p_i.x - prevPos[i];
+			float vel = v.norm();
+
+			if (vel > 0.004) {
+				v *= 0.004 / vel;
+				p_i.x = prevPos[i] + v;
+			}
+
+			p_i.v = v / dt;
+
+			// apply viscosity
+			applyViscosity(neighbors, i);
+			// std::cout << "%: " << abs((int)p_i.x.x()) % m_res_x << " " << abs((int)p_i.x.y()) % m_res_y << std::endl;
+			p_density->set_m_x(abs((int)p_i.x.x()) % m_res_x, abs((int)p_i.x.y()) % m_res_y);
+		}
+		
 
 		// For each particle, calculate lambda
 		// cout << "ITeration: " << iteration << endl;
@@ -360,53 +433,53 @@ void FluidSim::integrateSPH() {
 
 	// Correct the velocities based on the new constraint-solved positions
 	// And confirm the positions
-	int ctr = 0;
-	// cout << "FINAL LOOP" << endl;
-	for (auto &p : particles) {
-		// cout << "START OF LOOP: " << p_i.x << endl;
-		p.v = 1 / m_dt * (new_x[ctr] - p.x);
-		p.x = new_x[ctr];
-		// cout << "New position of particle " << ctr << "/" << particles.size() << ": " << p.x.transpose().format(Eigen::IOFormat(2, 0, ", ")) << " and its velocity: " << p.v.transpose().format(Eigen::IOFormat(2, 0, ", ")) << endl;
-		ctr++;
+	// int ctr = 0;
+	// // cout << "FINAL LOOP" << endl;
+	// for (auto &p : particles) {
+	// 	// cout << "START OF LOOP: " << p_i.x << endl;
+	// 	p.v = 1 / m_dt * (new_x[ctr] - p.x);
+	// 	p.x = new_x[ctr];
+	// 	// cout << "New position of particle " << ctr << "/" << particles.size() << ": " << p.x.transpose().format(Eigen::IOFormat(2, 0, ", ")) << " and its velocity: " << p.v.transpose().format(Eigen::IOFormat(2, 0, ", ")) << endl;
+	// 	ctr++;
 
-		// =================================================
-		// ================ boundary checks ================
-		// =================================================
-		int x_coord = (int)p.x.x();
-		int y_coord = (int)p.x.y();
+	// 	// =================================================
+	// 	// ================ boundary checks ================
+	// 	// =================================================
+	// 	int x_coord = (int)p.x.x();
+	// 	int y_coord = (int)p.x.y();
 
-		// Left
-		if (x_coord <= 0) {
-			p.v(0) *= -0.5f;
-			p.x(0) = m_h;
-		}
+	// 	// Left
+	// 	if (x_coord <= 0) {
+	// 		p.v(0) *= -0.5f;
+	// 		p.x(0) = m_h;
+	// 	}
 
-		// Right
-		if (x_coord >= m_res_x) {
-			p.v(0) *= -0.5f;
-			p.x(0) = m_res_x - m_h;
-		}
+	// 	// Right
+	// 	if (x_coord >= m_res_x) {
+	// 		p.v(0) *= -0.5f;
+	// 		p.x(0) = m_res_x - m_h;
+	// 	}
 
-		// Bottom
-		if (y_coord <= 0) {
-			p.v(1) *= -0.5f;
-			p.x(1) = m_h;
-		}
+	// 	// Bottom
+	// 	if (y_coord <= 0) {
+	// 		p.v(1) *= -0.5f;
+	// 		p.x(1) = m_h;
+	// 	}
 
-		// Top
-		if (y_coord >= m_res_y) {
-			p.v(1) *= -0.5f;
-			p.x(1) = m_res_y - m_h;
-		}
+	// 	// Top
+	// 	if (y_coord >= m_res_y) {
+	// 		p.v(1) *= -0.5f;
+	// 		p.x(1) = m_res_y - m_h;
+	// 	}
 
-		// Update grid positions
-		// std::cout << p.x << std::endl;
-		// std::cout << "x: " << p.x.x() << " y: " << p.x.y() << endl;
-		// std::cout << "abs: " << abs((int)p.x.x()) << " " << abs((int)p.x.y()) << std::endl;
-		// std::cout << "%: " << abs((int)p.x.x()) % m_res_x << " " << abs((int)p.x.y()) % m_res_y << std::endl;
-		// std::cout << "From .cpp: " << m_res_x << " " << m_res_y << std::endl;
-		p_density->set_m_x(abs((int)p.x.x()) % m_res_x, abs((int)p.x.y()) % m_res_y);
-	}
+	// 	// Update grid positions
+	// 	// std::cout << p.x << std::endl;
+	// 	// std::cout << "x: " << p.x.x() << " y: " << p.x.y() << endl;
+	// 	// std::cout << "abs: " << abs((int)p.x.x()) << " " << abs((int)p.x.y()) << std::endl;
+	// 	// std::cout << "%: " << abs((int)p.x.x()) % m_res_x << " " << abs((int)p.x.y()) % m_res_y << std::endl;
+	// 	// std::cout << "From .cpp: " << m_res_x << " " << m_res_y << std::endl;
+	// 	p_density->set_m_x(abs((int)p.x.x()) % m_res_x, abs((int)p.x.y()) % m_res_y);
+	// }
 	// yuto: removed stuff down here for debugging, check git log
 	// std::cout << "here" << std::endl;
 

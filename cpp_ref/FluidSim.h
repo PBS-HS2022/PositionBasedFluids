@@ -32,7 +32,7 @@ public:
 		m_dt = 0.005 * sqrt((m_res_x + m_res_y) * 0.5);
 		// m_dt = 0.01;
 		m_acc = 1e-5;
-		m_iter = 1000;
+		m_iter = 10;
 		m_field = 0;
 		m_velocityOn = false;
 		m_vScale = 20;
@@ -40,11 +40,11 @@ public:
 		m_macOn = true;
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
-		m_NUM_PARTICLES = 10;
+		m_NUM_PARTICLES = 100;
 
 		m_mass = 2.5f;
 		m_k = 100.0f;
-		m_h = 2.0f;
+		m_h = 0.03f;
 		m_rho0 = 0.3f;
 		m_visc_cons = 0.2f;
 
@@ -128,8 +128,8 @@ public:
 		// // reset forces
 		// p_force->reset();
 
-		computePressureSPH();
-		computeForcesSPH();
+		// computePressureSPH();
+		// computeForcesSPH();
 		// solveFluids();
 		integrateSPH();
 
@@ -315,8 +315,9 @@ public:
 	void integrateSPH();
 	void computePressureSPH();
 	void computeForcesSPH();
-	void solveFluids();
+	void solveFluids(std::vector<std::vector<int>> neighbors);
 	void solveBoundaries();
+	void applyViscosity(std::vector<std::vector<int>> neighbors, int i);
 #pragma endregion SPH
 
 #pragma region SettersAndGetters
