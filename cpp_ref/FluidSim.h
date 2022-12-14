@@ -40,7 +40,7 @@ public:
 		m_macOn = true;
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
-		m_NUM_PARTICLES = 400;
+		m_NUM_PARTICLES = 2500;
 
 		m_mass = 2.5f;
 		m_k = 100.0f;
@@ -315,9 +315,9 @@ public:
 	void integrateSPH();
 	void computePressureSPH();
 	void computeForcesSPH();
-	void solveFluids(std::vector<std::vector<int>> neighbors);
+	void solveFluids(std::vector<std::vector<int>> * neighbors);
 	void solveBoundaries();
-	void applyViscosity(std::vector<std::vector<int>> neighbors, int i);
+	void applyViscosity(std::vector<std::vector<int>> * neighbors, int i);
 #pragma endregion SPH
 
 #pragma region SettersAndGetters

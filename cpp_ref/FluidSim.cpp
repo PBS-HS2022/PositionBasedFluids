@@ -158,7 +158,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 // =================================================
 // ============== Solve Fluids =====================
 // =================================================
-void FluidSim::solveFluids(std::vector<std::vector<int>> neighbors) {
+void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 	for (int i=0; i < particles.size(); i++) {
 		// Particle p_i = particles[i];
 
@@ -168,8 +168,8 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> neighbors) {
 		Eigen::Vector2d grad_i(0.0f, 0.0f);
 		
 		// Loop through neighbors
-		for (int neighbor_ix=0; neighbor_ix < neighbors[i].size(); neighbor_ix++) {
-			int id = neighbors[i][neighbor_ix];
+		for (int neighbor_ix=0; neighbor_ix < (*neighbors)[i].size(); neighbor_ix++) {
+			int id = (*neighbors)[i][neighbor_ix];
 			// Particle p_j = particles[id];
 			//Calculate distance between particles
 			Eigen::Vector2d n = particles[id].x - particles[i].x; 
@@ -206,8 +206,8 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> neighbors) {
 		
 		float lambda = -c / (sum_grad2 + 0.0001);
 
-		for (int neighbor_ix=0; neighbor_ix < neighbors[i].size(); neighbor_ix++) {
-			int id = neighbors[i][neighbor_ix];
+		for (int neighbor_ix=0; neighbor_ix < (*neighbors)[i].size(); neighbor_ix++) {
+			int id = (*neighbors)[i][neighbor_ix];
 			Particle p_j = particles[id];
 
 			if (id == i) {
@@ -268,10 +268,10 @@ void FluidSim::solveBoundaries() {
 // =================================================
 // ============= Apply Viscosity ===================
 // =================================================
-void FluidSim::applyViscosity(std::vector<std::vector<int>> neighbors, int i) {
+void FluidSim::applyViscosity(std::vector<std::vector<int>> * neighbors, int i) {
 	if (neighbors[i].size() == 0) return;
 	Eigen::Vector2d avg_vel = Eigen::Vector2d(0.0f, 0.0f);
-	for (int id : neighbors[i]) {
+	for (int id : (*neighbors)[i]) {
 		avg_vel += particles[id].v;
 	}
 	avg_vel /= neighbors[i].size();
@@ -338,7 +338,7 @@ void FluidSim::integrateSPH() {
 
 		// Solve fluids here
 		solveBoundaries();
-		solveFluids(neighbors);
+		solveFluids(&neighbors);
 
 		// derive velocities
 		for (int i=0; i < particles.size(); i++) {
@@ -356,7 +356,7 @@ void FluidSim::integrateSPH() {
 			particles[i].v = v / dt;
 
 			// apply viscosity
-			applyViscosity(neighbors, i);
+			applyViscosity(&neighbors, i);
 			// std::cout << "%: " << abs((int)p_i.x.x()) % m_res_x << " " << abs((int)p_i.x.y()) % m_res_y << std::endl;
 			p_density->set_m_x(abs((int)particles[i].x.x()) % m_res_x, abs((int)particles[i].x.y()) % m_res_y);
 		}
