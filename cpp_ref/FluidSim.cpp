@@ -109,7 +109,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 	auto get_nearest_grid = [this](Eigen::Vector2d particle_pos) {
 		// Use Vector3i for 3D:
 		// return Eigen::Vector3i((int)floor(particle_pos.x() / m_dx), (int)floor(particle_pos.y() / m_dx), (int)floor(particle_pos.z() / m_dx));
-		return Eigen::Vector2i((int)floor(particle_pos.x() / m_dx), (int)floor(particle_pos.y() / m_dx));
+		return Eigen::Vector2i((int)floor(particle_pos.x() /(m_h * 1.5)), (int)floor(particle_pos.y() / (m_h * 1.5)));
 	};
 
 	// 2D Hashtable representing spatial coordinates. The value in each cell
