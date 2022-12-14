@@ -175,7 +175,7 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 			}
 			// If distance is greater than kernel radius (h)
 			if (r > m_h) {
-				m_grads[neighbor_ix] = Eigen::Vector2d(0.0f);
+				m_grads[neighbor_ix] = Eigen::Vector2d(0.0f, 0.0f);
 			}
 			else {
 				float r2 = r * r;
