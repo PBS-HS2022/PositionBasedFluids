@@ -344,6 +344,18 @@ void FluidSim::solveBoundaries() {
 			p_i.v(1) *= -0.5f;
 			p_i.x(1) = m_res_y - m_h;
 		}
+
+		// Back
+		if (z_coord <= m_h) {
+			p_i.v(2) *= -0.5f;
+			p_i.x(2) = m_h;
+		}
+
+		// Front
+		if (z_coord >= m_res_z - m_h) {
+			p_i.v(2) *= -0.5f;
+			p_i.x(2) = m_res_z - m_h;
+		}
 	}
 }
 

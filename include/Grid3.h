@@ -5,6 +5,8 @@
 #include <Eigen/Core>
 #include "Array3T.h"
 #include <igl/voxel_grid.h>
+#include <igl/copyleft/marching_cubes.h>
+#include <igl/signed_distance.h>
 
 class Grid3 {
 public:
@@ -24,59 +26,63 @@ public:
 	const Array3d& x() const { return m_x; }
 
 	void buildMesh() {
-		int num_vertices = (m_res_x + 1) * (m_res_y + 1) * (m_res_z + 1);
-		int num_faces = m_res_x * m_res_y * m_res_z * 2; // 2 triangles per side, 6 sides in 3D cell
+		Eigen::MatrixXi F(12, 3);
+		Eigen::MatrixXd V(8, 3);
+		V << 0, 0, 0,
+			 m_res_x, 0, 0,
+			 0, m_res_y, 0,
+			 0, 0, m_res_z,
+			 m_res_x, m_res_y, 0,
+			 0, m_res_y, m_res_z,
+			 m_res_x, 0, m_res_z,
+			 m_res_x, m_res_y, m_res_z;
+		F << 0, 1, 4,
+		     0, 4, 2,
+			 1, 6, 7,
+			 1, 7, 4,
+			 6, 3, 5,
+			 6, 5, 7,
+			 3, 0, 2,
+			 3, 2, 5,
+			 2, 4, 7,
+			 2, 7, 5,
+			 3, 6, 1,
+			 3, 1, 0;
 
-		m_V = Eigen::MatrixXd(num_vertices, 3);
-		m_F = Eigen::MatrixXi(num_faces, 3);
+		Eigen::Vector3d Vmax(m_res_x - 1, m_res_y - 1, m_res_z - 1);
+		Eigen::Vector3d Vmin(0.f, 0.f, 0.f);
+		const Eigen::RowVector3i res = (Vmax-Vmin).cast<int>();
+		// create grid
+		// std::cout<<"Creating grid..."<<std::endl;
+		Eigen::MatrixXd GV(res(0)*res(1)*res(2), 3);
+		Eigen::VectorXd points(res(0)*res(1)*res(2));
 
-		int i = 0;
-		for (int z = 0; z <= m_res_z; ++z) {
-			for (int y = 0; y <= m_res_y; ++y) {
-				for (int x = 0; x <= m_res_x; ++x) {
-					m_V.row(i++) = Eigen::RowVector3d(x, y, z) * m_dx;
+		for (int zi = 0;zi<res(2);zi++) {
+			const auto lerp = [&](const int di, const int d)->double {
+				return Vmin(d)+(double)di/(double)(res(d)-1)*(Vmax(d)-Vmin(d));
+			};
+			const double z = lerp(zi,2);
+			for (int yi = 0;yi<res(1);yi++) {
+				const double y = lerp(yi,1);
+				for (int xi = 0;xi<res(0);xi++) {
+					const double x = lerp(xi,0);
+					GV.row(xi+res(0)*(yi + res(1)*zi)) = Eigen::RowVector3d(x,y,z);
+					points(xi + res(0) * (yi + res(1) * zi)) = m_x(x, y, z);
 				}
 			}
 		}
 
-		i = 0;
-		for (int z = 0; z < m_res_z; ++z) {
-			for (int y = 0; y < m_res_y; ++y) {
-				for (int x = 0; x < m_res_x; ++x) {
-					int vid = z * (m_res_y + 1) * (m_res_x + 1) + y * (m_res_x + 1) + x;
-					int vid_front_right = vid + 1;
-					int vid_front_right_up = vid_front_right + (m_res_x + 1);
-					int vid_front_up = vid + (m_res_x + 1);
-					int vid_back = vid + (m_res_y + 1) * (m_res_x + 1);
-					int vid_back_right = vid_back + 1;
-					int vid_back_right_up = vid_back_right + (m_res_x + 1);
-					int vid_back_up = vid_back + (m_res_x + 1);
-					// front side
-					m_F.row(i++) = Eigen::RowVector3i(vid, vid_front_right, vid_front_right_up);
-					m_F.row(i++) = Eigen::RowVector3i(vid, vid_front_right_up, vid_front_up);
-					// right side
-					// m_F.row(i++) = Eigen::RowVector3i(vid_front_right, vid_back_right, vid_back_right_up);
-					// m_F.row(i++) = Eigen::RowVector3i(vid_front_right, vid_back_right_up, vid_front_right_up);
-					// // back side
-					// m_F.row(i++) = Eigen::RowVector3i(vid_back_right, vid_back, vid_back_up);
-					// m_F.row(i++) = Eigen::RowVector3i(vid_back_right, vid_back_up, vid_back_right_up);
-					// // left side
-					// m_F.row(i++) = Eigen::RowVector3i(vid_back, vid, vid_front_up);
-					// m_F.row(i++) = Eigen::RowVector3i(vid_back, vid_front_up, vid_back_up);
-					// // up side
-					// m_F.row(i++) = Eigen::RowVector3i(vid_front_up, vid_front_right_up, vid_back_right_up);
-					// m_F.row(i++) = Eigen::RowVector3i(vid_front_up, vid_back_right_up, vid_back_up);
-					// // down side
-					// m_F.row(i++) = Eigen::RowVector3i(vid_back, vid_back_right, vid_front_right);
-					// m_F.row(i++) = Eigen::RowVector3i(vid_back, vid_front_right, vid);
-				}
-			}
-		}
+		igl::copyleft::marching_cubes(points, GV, res(0), res(1), res(2), 0, m_V, m_F);
 	}
 
 	void reset() {
 		m_x.zero();
 		// m_x.fill(1.0);
+	}
+
+	void getMesh(Eigen::MatrixXd& ret_V, Eigen::MatrixXi& ret_F) const {
+		ret_V = m_V;
+		ret_F = m_F;
 	}
 
 	void applySource(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax) {
@@ -95,12 +101,10 @@ public:
 		m_x(x, y, z) = 0.5;
 	}
 
-	void getMesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F) const {
-		V = m_V;
-		F = m_F;
-	}
-
 	void getColors(Eigen::MatrixXd& C, bool normalize=false, bool faceColor=true) const { 
+		C.resize(1, 3);
+		C.row(0) = Eigen::RowVector3d(0, 0, 255);
+		return;
 		if (faceColor) {
 			if (C.rows() == 0) {
 				int num_faces = m_res_x * m_res_y * m_res_z * 2;

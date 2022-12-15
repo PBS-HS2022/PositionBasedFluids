@@ -65,7 +65,6 @@ public:
 		p_pressure = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 		p_divergence = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 		p_vorticity = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
-		p_density->getMesh(m_renderV, m_renderF); // need to call once
 
 		initSPH(0.45, 0.55, 0.7, 0.95, 0.45, 0.55);
 
@@ -112,11 +111,16 @@ public:
 		return false;
 	}
 
-	virtual void renderRenderGeometry(
-		igl::opengl::glfw::Viewer& viewer) override {
+	virtual void renderRenderGeometry(igl::opengl::glfw::Viewer& viewer) override {
+		// Build the mesh everytime we want to get it, since unlike the 2D
+		// variant where the mesh is always a constant grid (colored black or blue),
+		// 3D fluid meshes are constructed depending on the density at every frame.
+		p_density->buildMesh();
+		// Put the generated mesh into our local variables.
+		p_density->getMesh(m_renderV, m_renderF);
 		viewer.data().set_mesh(m_renderV, m_renderF);
 		viewer.data().set_colors(m_renderC);
-		}
+ 	}
 
 #pragma region SPH
 	void initSPH(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax);
