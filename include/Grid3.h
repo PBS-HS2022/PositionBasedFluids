@@ -49,13 +49,13 @@ public:
 		Eigen::MatrixXd GV(res(0) * res(1) * res(2), 3);
 		Eigen::VectorXd points(res(0) * res(1) * res(2));
 
+		// Convert 0 -> res numbers to Vmin -> Vmax numbers
+		// The first argument is the number to scale, the second is the
+		// dimension to index into V for (x:0, y:1, or z:2)
+		const auto lerp = [&](const int di, const int d)->double {
+			return Vmin(d) + (double)di / (double)(res(d) - 1) * (Vmax(d) - Vmin(d));
+		};
 		for (int zi = 0; zi < res(2); zi++) {
-			// Convert 0 -> res numbers to Vmin -> Vmax numbers
-			// The first argument is the number to scale, the second is the
-			// dimension to index into V for (x:0, y:1, or z:2)
-			const auto lerp = [&](const int di, const int d)->double {
-				return Vmin(d) + (double)di / (double)(res(d) - 1) * (Vmax(d) - Vmin(d));
-			};
 			for (int yi = 0; yi < res(1);yi++) {
 				for (int xi = 0; xi < res(0);xi++) {
 					const double x = lerp(xi, 0);
