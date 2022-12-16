@@ -28,14 +28,18 @@ public:
 	void buildMesh() {
 		Eigen::MatrixXi F(12, 3);
 		Eigen::MatrixXd V(8, 3);
-		V << 0, 0, 0,
-			 m_res_x, 0, 0,
-			 0, m_res_y, 0,
-			 0, 0, m_res_z,
-			 m_res_x, m_res_y, 0,
-			 0, m_res_y, m_res_z,
-			 m_res_x, 0, m_res_z,
-			 m_res_x, m_res_y, m_res_z;
+		// Centered at x/z origin, with bottom being at y=0
+		// This is only for the mesh to simplify imports into other programs.
+		// The simulation and all are done with only positive coordinates, and
+		// functions like set_m_x take in 0 -> m_res range values.
+		V << -m_res_x / 2, 0,       -m_res_z / 2,
+			 m_res_x / 2,  0,       -m_res_z / 2,
+			 -m_res_x / 2, m_res_y, -m_res_z / 2,
+			 -m_res_x / 2, 0,       m_res_z / 2,
+			 m_res_x / 2,  m_res_y, -m_res_z / 2,
+			 -m_res_x / 2, m_res_y, m_res_z / 2,
+			 m_res_x / 2,  0,       m_res_z / 2,
+			 m_res_x / 2,  m_res_y, m_res_z / 2;
 		F << 0, 1, 4,
 		     0, 4, 2,
 			 1, 6, 7,
@@ -49,30 +53,45 @@ public:
 			 3, 6, 1,
 			 3, 1, 0;
 
-		Eigen::Vector3d Vmax(m_res_x - 1, m_res_y - 1, m_res_z - 1);
-		Eigen::Vector3d Vmin(0.f, 0.f, 0.f);
-		const Eigen::RowVector3i res = (Vmax-Vmin).cast<int>();
-		// create grid
-		// std::cout<<"Creating grid..."<<std::endl;
-		Eigen::MatrixXd GV(res(0)*res(1)*res(2), 3);
-		Eigen::VectorXd points(res(0)*res(1)*res(2));
+		Eigen::Vector3d Vmax = V.colwise().maxCoeff();
+		Eigen::Vector3d Vmin = V.colwise().minCoeff();
+		const Eigen::RowVector3i res = (Vmax - Vmin).cast<int>();
 
-		for (int zi = 0;zi<res(2);zi++) {
+		Eigen::MatrixXd GV(res(0) * res(1) * res(2), 3);
+		Eigen::VectorXd points(res(0) * res(1) * res(2));
+
+		for (int zi = 0; zi < res(2); zi++) {
+			// Convert 0 -> res numbers to Vmin -> Vmax numbers
+			// The first argument is the number to scale, the second is the
+			// dimension to index into V for (x:0, y:1, or z:2)
 			const auto lerp = [&](const int di, const int d)->double {
-				return Vmin(d)+(double)di/(double)(res(d)-1)*(Vmax(d)-Vmin(d));
+				return Vmin(d) + (double)di / (double)(res(d) - 1) * (Vmax(d) - Vmin(d));
 			};
-			const double z = lerp(zi,2);
-			for (int yi = 0;yi<res(1);yi++) {
-				const double y = lerp(yi,1);
-				for (int xi = 0;xi<res(0);xi++) {
-					const double x = lerp(xi,0);
-					GV.row(xi+res(0)*(yi + res(1)*zi)) = Eigen::RowVector3d(x,y,z);
-					points(xi + res(0) * (yi + res(1) * zi)) = m_x(x, y, z);
+			for (int yi = 0; yi < res(1);yi++) {
+				for (int xi = 0; xi < res(0);xi++) {
+					const double x = lerp(xi, 0);
+					const double y = lerp(yi, 1);
+					const double z = lerp(zi, 2);
+					// We use x, y, z transformed to Vmin->Vmax numbers, since
+					// this is the actual position in world coordinates of
+					// those vertices.
+					GV.row(xi + res(0) * yi + res(0) * res(1) * zi) = Eigen::RowVector3d(x, y, z);
+
+					// We use xi, yi, and zi coords for m_x since it is 0 -> m_res
+					points(xi + res(0) * yi + res(0) * res(1) * zi) = m_x(xi, yi, zi);
 				}
 			}
 		}
 
-		igl::copyleft::marching_cubes(points, GV, res(0), res(1), res(2), 0, m_V, m_F);
+		igl::copyleft::marching_cubes(
+			points,
+			GV,
+			res(0),
+			res(1),
+			res(2),
+			0,
+			m_V,
+			m_F);
 	}
 
 	void reset() {
@@ -98,7 +117,7 @@ public:
 
 	void set_m_x(int x, int y, int z) {
 		// std::cout << m_res_x << " " << m_res_y << std::endl;
-		m_x(x, y, z) = 0.5;
+		m_x(x, y, z) += 0.5;
 	}
 
 	void getColors(Eigen::MatrixXd& C, bool normalize=false, bool faceColor=true) const { 
