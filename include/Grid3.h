@@ -112,7 +112,7 @@ public:
 		// 3D meshes only represent the fluid part. So we can return a single
 		// value for the whole thing.
 		C.resize(1, 3);
-		C.row(0) = Eigen::RowVector3d(0, 255, 255);
+		C.row(0) = Eigen::RowVector3d(0, 0, 255);
 		return;
 	}
 
