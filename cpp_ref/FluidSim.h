@@ -67,17 +67,17 @@ public:
 		p_divergence = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 		p_vorticity = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 
-		// reset() calls resetMembers() after setting timestamp to 0
+		// reset() calls resetMembers() after setting timestamp to 0.
 		reset();
+
+		// updateRenderGeometry() is called after this by the Gui
+		// (in Gui::setSimulation), which will create the first frame's mesh.
 	}
 
 	virtual void resetMembers() override {
 		p_density->reset();
 		particles.clear();
 		initSPH(0.45, 0.55, 0.7, 0.95, 0.45, 0.55);
-
-		p_density->buildMesh();
-		p_density->getMesh(m_renderV, m_renderF);
 	}
 
 	virtual void updateRenderGeometry() override {
