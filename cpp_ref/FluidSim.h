@@ -41,12 +41,12 @@ public:
 		m_macOn = true;
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
-		m_NUM_PARTICLES = 2500;
+		m_NUM_PARTICLES = 250000;
 
 		m_mass = 2.5f;
 		m_k = 100.0f;
-		m_h = 4.f;
-		m_rho0 = 0.3f;
+		m_h = 0.3f;
+		m_rho0 = 0.0001f;
 		m_visc_cons = 0.f;
 
 		// TODO: do these need to account for z?
