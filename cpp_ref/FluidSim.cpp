@@ -316,10 +316,11 @@ void FluidSim::solveBoundaries() {
 		// }
 
 
-		int x_coord = (int)p_i.x.x();
-		int y_coord = (int)p_i.x.y();
-		int z_coord = (int)p_i.x.z();
-		// TODO: use z coord too, but which way is front? positive?
+		double x_coord = p_i.x.x();
+		double y_coord = p_i.x.y();
+		double z_coord = p_i.x.z();
+		// Yuto: i noticed that velocity overrides here have no effect since
+		// we set (overwrite) p_i.x after this function is called
 
 		// Left
 		if (x_coord <= m_h) {
