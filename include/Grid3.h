@@ -18,7 +18,6 @@ public:
 		m_res_z = res_z;
 		m_dx = dx;
 		m_x = Array3d(res_x, res_y, res_z);
-		buildMesh();
 	}
 
 	Array3d& x() { return m_x; }
@@ -108,15 +107,14 @@ public:
 		for (int z = (int)(zmin * m_res_z); z < (int)(zmax * m_res_z); z++) {
 			for (int y = (int)(ymin * m_res_y); y < (int)(ymax * m_res_y); y++) {
 				for (int x = (int)(xmin * m_res_x); x < (int)(xmax * m_res_x); x++) {
-					// m_x(x, y) = 1.0;
-					m_x(x, y, z) = 0.5;
+					m_x(x, y, z) = 1.f;
 				}
 			}
 		}
 	}
 
 	void set_m_x(int x, int y, int z) {
-		m_x(x, y, z) += 0.5;
+		m_x(x, y, z) += 1.f;
 	}
 
 	void getColors(Eigen::MatrixXd& C) const {
