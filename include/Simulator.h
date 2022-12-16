@@ -26,6 +26,7 @@ public:
 		m_please_die(false),
 		m_running(false),
 		m_started(false),
+		m_isExportingObj(false),
 		m_recording(false),
 		m_single_iteration(false) {}
 
@@ -129,6 +130,9 @@ public:
 	// for infinite simulation
 	void setMaxSteps(int n = -1) { m_maxSteps = n; }
 
+	void setExportingObj(bool r) { m_isExportingObj = r; }
+	bool isExportingObj() const { return m_isExportingObj; }
+
 	void clearRecords() {
 		for (size_t i = 0; i < m_record.size(); i++) {
 			m_record[i] =
@@ -147,7 +151,6 @@ public:
 	}
 
 	bool isRecording() const { return m_recording; }
-
 	void setNumRecords(int n) { m_numRecords = n; }
 
 	std::vector<std::queue<std::pair<Eigen::MatrixXd, Eigen::MatrixXi>>>
@@ -205,6 +208,10 @@ protected:
 				p_simulation->updateRenderGeometry();
 				m_render_mutex.unlock();
 
+				if (m_isExportingObj) {
+					p_simulation->exportObj();
+				}
+
 				high_resolution_clock::time_point end =
 					high_resolution_clock::now();
 
@@ -255,6 +262,7 @@ protected:
 	std::mutex m_render_mutex;
 	std::mutex m_status_mutex;
 
+	bool m_isExportingObj;
 	bool m_recording;
 	int m_numRecords;
 	std::vector<std::queue<std::pair<Eigen::MatrixXd, Eigen::MatrixXi>>>

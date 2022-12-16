@@ -440,6 +440,10 @@ bool Gui::drawMenu(igl::opengl::glfw::Viewer &viewer,
 			singleStep();
 		}
 		if (ImGui::Button("Reset Simulation", ImVec2(-1, 0))) {
+			// If we were exporting obj sequences, turn it off. This is because
+			// if we forgot to stop exporting before resetting, the 0th frame
+			// after resetting will overwrite the first obj export.
+			p_simulator->setExportingObj(false);
 			resetSimulation();
 		}
 		if (ImGui::Button("Clear Screen", ImVec2(-1, 0))) {
@@ -484,6 +488,25 @@ bool Gui::drawMenu(igl::opengl::glfw::Viewer &viewer,
 	if (ImGui::CollapsingHeader("Simulation Parameters",
 		ImGuiTreeNodeFlags_DefaultOpen)) {
 		drawSimulationParameterMenu();
+	}
+	if (ImGui::CollapsingHeader("Write OBJ Sequence to disk")) {
+		bool isExportingObj = p_simulator->isExportingObj();
+		ImGui::PushStyleColor(ImGuiCol_Button,
+			isExportingObj ? ImVec4(0.98f, 0.26f, 0.26f, 0.40f)
+			: ImVec4(0.26f, 0.98f, 0.40f, 0.40f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+			isExportingObj ? ImVec4(0.98f, 0.26f, 0.26f, 1.0f)
+			: ImVec4(0.26f, 0.98f, 0.40f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+			isExportingObj ? ImVec4(0.98f, 0.26f, 0.00f, 0.9f)
+			: ImVec4(0.00f, 0.98f, 0.40f, 0.9f));
+		if (ImGui::Button(isExportingObj ? "Stop Writing OBJ" : "Start Writing OBJ",
+			ImVec2(-1, 0))) {
+			p_simulator->setExportingObj(!isExportingObj);
+		}
+		ImGui::PopStyleColor();
+		ImGui::PopStyleColor();
+		ImGui::PopStyleColor();
 	}
 	if (ImGui::CollapsingHeader("Recording")) {
 		bool hasRecords = p_simulator->getRecords().size() > 0 &&

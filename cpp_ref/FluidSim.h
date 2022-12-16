@@ -1,6 +1,7 @@
 #include <igl/edges.h>
 #include "Simulation.h"
 #include "Grid3.h"
+#include <igl/writeOBJ.h>
 
 using namespace std;
 
@@ -66,8 +67,7 @@ public:
 		p_divergence = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 		p_vorticity = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 
-		initSPH(0.45, 0.55, 0.7, 0.95, 0.45, 0.55);
-
+		// reset() calls resetMembers() after setting timestamp to 0
 		reset();
 	}
 
@@ -75,14 +75,19 @@ public:
 		p_density->reset();
 		particles.clear();
 		initSPH(0.45, 0.55, 0.7, 0.95, 0.45, 0.55);
-		
-		// p_density->applySource(0.45, 0.55, 0.1, 0.15);
-		// p_density->applySource(0.45, 0.55, 0.7, 0.95);
-		// p_pressure->reset();
-		// p_divergence->reset();
+
+		p_density->buildMesh();
+		p_density->getMesh(m_renderV, m_renderF);
 	}
 
 	virtual void updateRenderGeometry() override {
+		// Build the mesh at every timestep, since unlike the 2D variant where
+		// the mesh is always a constant grid (colored black or blue), 3D fluid
+		// meshes are constructed depending on the density at every frame.
+		p_density->buildMesh();
+		// Put the generated mesh into our local variables.
+		p_density->getMesh(m_renderV, m_renderF);
+
 		if (m_field == 0) {
 			p_density->getColors(m_renderC);
 		}
@@ -112,15 +117,18 @@ public:
 	}
 
 	virtual void renderRenderGeometry(igl::opengl::glfw::Viewer& viewer) override {
-		// Build the mesh everytime we want to get it, since unlike the 2D
-		// variant where the mesh is always a constant grid (colored black or blue),
-		// 3D fluid meshes are constructed depending on the density at every frame.
-		p_density->buildMesh();
-		// Put the generated mesh into our local variables.
-		p_density->getMesh(m_renderV, m_renderF);
 		viewer.data().set_mesh(m_renderV, m_renderF);
 		viewer.data().set_colors(m_renderC);
  	}
+
+	virtual void exportObj() override {
+		// We write to a sequence of object files that can be loaded in Blender
+		// I had no idea how to do an sprintf-like thing in c++, so here's some
+		// stream magic from stackoverflow
+		std::ostringstream filenameStream;
+  		filenameStream << "obj_frames/output" << m_step << ".obj";
+		igl::writeOBJ(filenameStream.str(), m_renderV, m_renderF);
+	}
 
 #pragma region SPH
 	void initSPH(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax);
