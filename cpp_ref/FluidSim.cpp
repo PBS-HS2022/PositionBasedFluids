@@ -454,7 +454,7 @@ void FluidSim::integrateSPH() {
 			// apply viscosity
 			applyViscosity(&neighbors, i);
 			// std::cout << "%: " << abs((int)p_i.x.x()) % m_res_x << " " << abs((int)p_i.x.y()) % m_res_y << std::endl;
-			p_density->set_m_x(abs((int)particles[i].x.x()) % m_res_x, abs((int)particles[i].x.y()) % m_res_y, abs((int)particles[i].x.z()) % m_res_z);
+			p_density->set_m_x((int)particles[i].x.x(), (int)particles[i].x.y(), (int)particles[i].x.z());
 		}
 	}
 }
