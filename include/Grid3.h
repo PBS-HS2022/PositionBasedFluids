@@ -18,6 +18,23 @@ public:
 		m_res_z = res_z;
 		m_dx = dx;
 		m_x = Array3d(res_x, res_y, res_z);
+
+		// The bounding box will always be the same size throughout this sim, so
+		// set it once on init.
+		m_boundingV = Eigen::MatrixXd(8, 3);
+		// Centered at x/z origin, with bottom being at y=0
+		// This is only for the mesh to simplify imports into other programs.
+		// The simulation and all are done with only positive coordinates, and
+		// functions like set_m_x take in 0 -> m_res range values.
+		m_boundingV <<
+			-m_res_x / 2, 0,       -m_res_z / 2,
+			m_res_x / 2,  0,       -m_res_z / 2,
+			-m_res_x / 2, m_res_y, -m_res_z / 2,
+			-m_res_x / 2, 0,       m_res_z / 2,
+			m_res_x / 2,  m_res_y, -m_res_z / 2,
+			-m_res_x / 2, m_res_y, m_res_z / 2,
+			m_res_x / 2,  0,       m_res_z / 2,
+			m_res_x / 2,  m_res_y, m_res_z / 2;
 	}
 
 	Array3d& x() { return m_x; }
@@ -25,35 +42,8 @@ public:
 	const Array3d& x() const { return m_x; }
 
 	void buildMesh() {
-		Eigen::MatrixXi F(12, 3);
-		Eigen::MatrixXd V(8, 3);
-		// Centered at x/z origin, with bottom being at y=0
-		// This is only for the mesh to simplify imports into other programs.
-		// The simulation and all are done with only positive coordinates, and
-		// functions like set_m_x take in 0 -> m_res range values.
-		V << -m_res_x / 2, 0,       -m_res_z / 2,
-			 m_res_x / 2,  0,       -m_res_z / 2,
-			 -m_res_x / 2, m_res_y, -m_res_z / 2,
-			 -m_res_x / 2, 0,       m_res_z / 2,
-			 m_res_x / 2,  m_res_y, -m_res_z / 2,
-			 -m_res_x / 2, m_res_y, m_res_z / 2,
-			 m_res_x / 2,  0,       m_res_z / 2,
-			 m_res_x / 2,  m_res_y, m_res_z / 2;
-		F << 0, 1, 4,
-		     0, 4, 2,
-			 1, 6, 7,
-			 1, 7, 4,
-			 6, 3, 5,
-			 6, 5, 7,
-			 3, 0, 2,
-			 3, 2, 5,
-			 2, 4, 7,
-			 2, 7, 5,
-			 3, 6, 1,
-			 3, 1, 0;
-
-		Eigen::Vector3d Vmax = V.colwise().maxCoeff();
-		Eigen::Vector3d Vmin = V.colwise().minCoeff();
+		const Eigen::Vector3d Vmax = m_boundingV.colwise().maxCoeff();
+		const Eigen::Vector3d Vmin = m_boundingV.colwise().minCoeff();
 		const Eigen::RowVector3i res = Eigen::RowVector3i(m_res_x, m_res_y, m_res_z);
 
 		Eigen::MatrixXd GV(res(0) * res(1) * res(2), 3);
@@ -122,7 +112,7 @@ public:
 		// 3D meshes only represent the fluid part. So we can return a single
 		// value for the whole thing.
 		C.resize(1, 3);
-		C.row(0) = Eigen::RowVector3d(0, 0, 255);
+		C.row(0) = Eigen::RowVector3d(0, 255, 255);
 		return;
 	}
 
@@ -149,6 +139,8 @@ protected:
 	Array3d m_x;
 	Eigen::MatrixXd m_V;
 	Eigen::MatrixXi m_F;
+
+	Eigen::MatrixXd m_boundingV;
 };
 
 #endif // GRID3_H
