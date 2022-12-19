@@ -7,6 +7,10 @@
 #include <igl/voxel_grid.h>
 #include <igl/copyleft/marching_cubes.h>
 #include <igl/signed_distance.h>
+#include <igl/parallel_for.h>
+
+// #include <tbb/parallel_for.h>
+// #include <tbb/blocked_range.h>
 
 class Grid3 {
 public:
@@ -18,6 +22,9 @@ public:
 		m_res_z = res_z;
 		m_dx = dx;
 		m_x = Array3d(res_x, res_y, res_z);
+
+		m_GV_raw = new double[res_x * res_y * res_z * 3];
+		m_points_raw = new double[res_x * res_y * res_z];
 
 		// The bounding box will always be the same size throughout this sim, so
 		// set it once on init.
@@ -37,6 +44,11 @@ public:
 			m_res_x / 2,  m_res_y, m_res_z / 2;
 	}
 
+	~Grid3() {
+		delete[] m_GV_raw;
+		delete[] m_points_raw;
+	}
+
 	Array3d& x() { return m_x; }
 
 	const Array3d& x() const { return m_x; }
@@ -46,31 +58,37 @@ public:
 		const Eigen::Vector3d Vmin = m_boundingV.colwise().minCoeff();
 		const Eigen::RowVector3i res = Eigen::RowVector3i(m_res_x, m_res_y, m_res_z);
 
-		Eigen::MatrixXd GV(res(0) * res(1) * res(2), 3);
-		Eigen::VectorXd points(res(0) * res(1) * res(2));
-
 		// Convert 0 -> res numbers to Vmin -> Vmax numbers
 		// The first argument is the number to scale, the second is the
 		// dimension to index into V for (x:0, y:1, or z:2)
 		const auto lerp = [&](const int di, const int d)->double {
 			return Vmin(d) + (double)di / (double)(res(d) - 1) * (Vmax(d) - Vmin(d));
 		};
-		for (int zi = 0; zi < res(2); zi++) {
-			for (int yi = 0; yi < res(1);yi++) {
-				for (int xi = 0; xi < res(0);xi++) {
-					const double x = lerp(xi, 0);
-					const double y = lerp(yi, 1);
-					const double z = lerp(zi, 2);
-					// We use x, y, z transformed to Vmin->Vmax numbers, since
-					// this is the actual position in world coordinates of
-					// those vertices.
-					GV.row(xi + res(0) * yi + res(0) * res(1) * zi) = Eigen::RowVector3d(x, y, z);
+		const Array3d read_only_m_x = m_x;
+		igl::parallel_for(
+			res(2) * res(1) * res(0),
+			[this, &res, &lerp, &read_only_m_x](int i) {
+			// Convert single index to equivalent triple nested loop indices
+			const int zi = i / (res(1) * res(0));
+			const int yi = (i % (res(1) * res(0))) / res(0);
+			const int xi = i % res(0);
 
-					// We use xi, yi, and zi coords for m_x since it is 0 -> m_res
-					points(xi + res(0) * yi + res(0) * res(1) * zi) = m_x(xi, yi, zi);
-				}
-			}
-		}
+			const double z = lerp(zi, 2);
+			const double y = lerp(yi, 1);
+			const double x = lerp(xi, 0);
+
+			// We use x, y, z, the interpolated values to Vmin->Vmax numbers,
+			// since this is the actual position in world coordinates of those
+			// vertices.
+			m_GV_raw[3 * i] = x;
+			m_GV_raw[3 * i + 1] = y;
+			m_GV_raw[3 * i + 2] = z;
+
+			// We use xi, yi, and zi coords for m_x since it is 0 -> m_res
+			m_points_raw[xi + res(0) * yi + res(0) * res(1) * zi] = read_only_m_x(xi, yi, zi);
+		});
+		Eigen::Map<Eigen::MatrixXd, Eigen::RowMajor> GV(m_GV_raw, res(0) * res(1) * res(2), 3);
+		Eigen::Map<Eigen::VectorXd, Eigen::RowMajor> points(m_points_raw, res(0) * res(1) * res(2));
 
 		igl::copyleft::marching_cubes(
 			points,
@@ -139,6 +157,8 @@ protected:
 	Array3d m_x;
 	Eigen::MatrixXd m_V;
 	Eigen::MatrixXi m_F;
+	double * m_GV_raw;
+	double * m_points_raw;
 
 	Eigen::MatrixXd m_boundingV;
 };
