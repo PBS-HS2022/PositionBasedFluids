@@ -62,7 +62,7 @@ public:
 
 		// ++++++++++ SPH variables +++++++++++++++++++++++
 
-		p_density = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
+		p_density = new Grid3(m_res_x, m_res_y, m_res_z, m_dx, true);
 		p_pressure = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 		p_divergence = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 		p_vorticity = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
