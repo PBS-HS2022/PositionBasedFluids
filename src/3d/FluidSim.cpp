@@ -147,11 +147,14 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 					// For all particles that are in this cell, collect those that
 					// are within the defined proximity radius, which is the cell
 					// size.
-					// Things that may fail this test include points that are at
-					// opposite diagonal ends in a cell.
+					// Things that may fail this test include points that just
+					// happened to map to the same hash but are in fact very far
+					// away.
 					auto this_grid_hash = get_grid_hash(Eigen::Vector3i(x, y, z));
 					for (int j : splatted_grid[this_grid_hash]) {
-						if ((particles[j].x - particles[i].x).squaredNorm() < (m_h * m_h * 1.5 * 1.5)) {
+						// Check Euclidean distance is within the sphere enclosing
+						// the cell
+						if ((particles[j].x - particles[i].x).squaredNorm() < (m_h * 1.5 * m_h * 1.5)) {
 							neighbors[i].push_back(j);
 						}
 					}
@@ -434,10 +437,11 @@ void FluidSim::integrateSPH() {
 		}
 
 		// Solve fluids here
-		solveBoundaries();
 		solveFluids(&neighbors);
+		solveBoundaries();
 
-		// derive velocities
+		// Fix position movements that would be too fast of a velocity, and
+		// derive velocities for the next step
 		for (int i=0; i < particles.size(); i++) {
 			// Particle p_i = particles[i];
 			// cout << "Previous position: " << prevPos[i] << endl;
@@ -445,6 +449,7 @@ void FluidSim::integrateSPH() {
 			Eigen::Vector3d v = particles[i].x - prevPos[i];
 			double vel = v.norm();
 
+			// If particle moved way too fast in this sub-timestep, fix it
 			if (vel > 0.1) {
 				v *= 0.1 / vel;
 				particles[i].x = prevPos[i] + v;
@@ -452,7 +457,7 @@ void FluidSim::integrateSPH() {
 
 			particles[i].v = v / dt;
 
-			// apply viscosity
+			// Apply viscosity tendency towards averaging over neighbours
 			applyViscosity(&neighbors, i);
 			// std::cout << "%: " << abs((int)p_i.x.x()) % m_res_x << " " << abs((int)p_i.x.y()) % m_res_y << std::endl;
 			p_density->set_m_x((int)particles[i].x.x(), (int)particles[i].x.y(), (int)particles[i].x.z());
