@@ -21,10 +21,6 @@ public:
 		m_res_y = res_y;
 		m_res_z = res_z;
 		m_dx = dx;
-		m_x = Array3d(res_x, res_y, res_z);
-
-		m_GV_raw = new double[res_x * res_y * res_z * 3];
-		m_points_raw = new double[res_x * res_y * res_z];
 
 		// The bounding box will always be the same size throughout this sim, so
 		// set it once on init.
@@ -42,32 +38,39 @@ public:
 			-m_res_x / 2, m_res_y, m_res_z / 2,
 			m_res_x / 2,  0,       m_res_z / 2,
 			m_res_x / 2,  m_res_y, m_res_z / 2;
-	}
 
-	~Grid3() {
-		delete[] m_GV_raw;
-		delete[] m_points_raw;
-	}
+		// Allocate memory where buildMesh will put the point values on each
+		// call to buildMesh. Do it once here so we don't have to reallocate new
+		// memory every time. This makes each iteration faster by ~10ms (on my
+		// machine at least lol).
+		// We can construct an Eigen array later pretty-much at no cost from
+		// this raw array.
+		m_x = Eigen::VectorXd(res_x * res_y * res_z);
 
-	Array3d& x() { return m_x; }
+		// GV will store the coordinates of each grid vertex, which will be the
+		// center of a 3D grid that will be used for the Marching Cubes algorithm.
+		m_GV = Eigen::MatrixXd(res_x * res_y * res_z, 3);
 
-	const Array3d& x() const { return m_x; }
-
-	void buildMesh() {
+		// Get the max and min of the bounding box defined above
 		const Eigen::Vector3d Vmax = m_boundingV.colwise().maxCoeff();
 		const Eigen::Vector3d Vmin = m_boundingV.colwise().minCoeff();
-		const Eigen::RowVector3i res = Eigen::RowVector3i(m_res_x, m_res_y, m_res_z);
 
-		// Convert 0 -> res numbers to Vmin -> Vmax numbers
+		// Convenience for function-style access from within the lerp helper.
+		const Eigen::RowVector3i res(res_x, res_y, res_z);
+
+		// Helper for the GV initialisation below.
+		// Linearly interpolates 0 -> res numbers to Vmin -> Vmax numbers
 		// The first argument is the number to scale, the second is the
 		// dimension to index into V for (x:0, y:1, or z:2)
 		const auto lerp = [&](const int di, const int d)->double {
 			return Vmin(d) + (double)di / (double)(res(d) - 1) * (Vmax(d) - Vmin(d));
 		};
-		const Array3d read_only_m_x = m_x;
+
+		// Initialize G_V once. This is just the grid vertices, so it will always
+		// stay constant.
 		igl::parallel_for(
 			res(2) * res(1) * res(0),
-			[this, &res, &lerp, &read_only_m_x](int i) {
+			[this, &res, &lerp](int i) {
 			// Convert single index to equivalent triple nested loop indices
 			const int zi = i / (res(1) * res(0));
 			const int yi = (i % (res(1) * res(0))) / res(0);
@@ -80,29 +83,28 @@ public:
 			// We use x, y, z, the interpolated values to Vmin->Vmax numbers,
 			// since this is the actual position in world coordinates of those
 			// vertices.
-			m_GV_raw[3 * i] = x;
-			m_GV_raw[3 * i + 1] = y;
-			m_GV_raw[3 * i + 2] = z;
-
-			// We use xi, yi, and zi coords for m_x since it is 0 -> m_res
-			m_points_raw[xi + res(0) * yi + res(0) * res(1) * zi] = read_only_m_x(xi, yi, zi);
+			m_GV.row(xi + res(0) * yi + res(1) * zi * res(2)) = Eigen::RowVector3d(x, y, z);
 		});
-		Eigen::Map<Eigen::MatrixXd, Eigen::RowMajor> GV(m_GV_raw, res(0) * res(1) * res(2), 3);
-		Eigen::Map<Eigen::VectorXd, Eigen::RowMajor> points(m_points_raw, res(0) * res(1) * res(2));
+	}
 
+	Eigen::VectorXd& x() { return m_x; }
+
+	const Eigen::VectorXd& x() const { return m_x; }
+
+	void buildMesh() {
 		igl::copyleft::marching_cubes(
-			points,
-			GV,
-			res(0),
-			res(1),
-			res(2),
+			m_x,
+			m_GV,
+			m_res_x,
+			m_res_y,
+			m_res_z,
 			0,
 			m_V,
 			m_F);
 	}
 
 	void reset() {
-		m_x.zero();
+		m_x.fill(0.0);
 		// m_x.fill(1.0);
 	}
 
@@ -115,14 +117,14 @@ public:
 		for (int z = (int)(zmin * m_res_z); z < (int)(zmax * m_res_z); z++) {
 			for (int y = (int)(ymin * m_res_y); y < (int)(ymax * m_res_y); y++) {
 				for (int x = (int)(xmin * m_res_x); x < (int)(xmax * m_res_x); x++) {
-					m_x(x, y, z) = 1.f;
+					m_x[z * m_res_x * m_res_y + y * m_res_x + x] = 1.f;
 				}
 			}
 		}
 	}
 
 	void set_m_x(int x, int y, int z) {
-		m_x(x, y, z) += 1.f;
+		m_x[z * m_res_x * m_res_y + y * m_res_x + x] += 1.f;
 	}
 
 	void getColors(Eigen::MatrixXd& C) const {
@@ -151,14 +153,16 @@ public:
 	}
 
 protected:
-	Eigen::MatrixXd m_voxel_grid;
 	int m_res_x, m_res_y, m_res_z;
 	double m_dx;
-	Array3d m_x;
+
+	// !! m_x is one-dimensional. Previously it was a three-dimensional lookup
+	// but that was slow when passing to the Marching Cubes algorithm in
+	// buildMesh.
+	Eigen::VectorXd m_x;
 	Eigen::MatrixXd m_V;
 	Eigen::MatrixXi m_F;
-	double * m_GV_raw;
-	double * m_points_raw;
+	Eigen::MatrixXd m_GV;
 
 	Eigen::MatrixXd m_boundingV;
 };
