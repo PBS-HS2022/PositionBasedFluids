@@ -30,9 +30,9 @@ if (NOT LIBIGL_FOUND)
 endif()
 
 # Add default project files
-file(GLOB LIBFILES ${PROJECT_SOURCE_DIR}/../include/*.*)
+file(GLOB LIBFILES ${PROJECT_SOURCE_DIR}/../../include/*.*)
 source_group("Library Files" FILES ${LIBFILES})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../include)
 
 # Add your project files
 file(GLOB SRCFILES *.cpp)
