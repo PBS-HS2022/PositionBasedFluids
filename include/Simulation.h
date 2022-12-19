@@ -55,6 +55,11 @@ public:
 	 */
 	virtual void renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) = 0;
 
+	/**
+	 * Export the objects in the scene at the current time to an OBJ file.
+	*/
+	virtual void exportObj() = 0;
+
 	void setTimestep(double t) { m_dt = t; }
 
 	double getTime() const { return m_time; }

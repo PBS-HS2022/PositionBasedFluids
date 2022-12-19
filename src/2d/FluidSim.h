@@ -297,6 +297,9 @@ public:
 		}
 	}
 
+	virtual void exportObj() override {
+	}
+
 #pragma endregion FluidSteps
 
 #pragma region Exercise
