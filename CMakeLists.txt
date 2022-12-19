@@ -37,4 +37,4 @@ endif()
 # find_package(CUDA  REQUIRED)
 # include_directories("${CUDA_INCLUDE_DIRS}")
 
-add_subdirectory(cpp_ref)
+add_subdirectory(src/3d)
