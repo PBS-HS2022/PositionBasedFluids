@@ -23,9 +23,9 @@ public:
 	FluidSim() : Simulation() { init(); }
 
 	virtual void init() override {
-		m_res_x = 128;
+		m_res_x = 80;
 		m_res_y = int(m_res_x*1.5); // 3:2 ratio
-		m_res_z = 128;
+		m_res_z = 80;
 		m_size_x = m_res_x; // or just 1.0
 		m_dx = m_size_x / m_res_x; // ! dx == dy
 		m_idx = m_res_x / m_size_x;

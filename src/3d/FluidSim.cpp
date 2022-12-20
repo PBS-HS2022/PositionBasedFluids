@@ -116,9 +116,9 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 		// Use Vector3i for 3D:
 		// return Eigen::Vector3i((int)floor(particle_pos.x() / m_dx), (int)floor(particle_pos.y() / m_dx), (int)floor(particle_pos.z() / m_dx));
 		return Eigen::Vector3i(
-			(int)floor(particle_pos.x() / (m_h * 1.5)),
-			(int)floor(particle_pos.y() / (m_h * 1.5)),
-			(int)floor(particle_pos.z() / (m_h * 1.5))
+			(int)floor(particle_pos.x() / (m_h * 2.0)),
+			(int)floor(particle_pos.y() / (m_h * 2.0)),
+			(int)floor(particle_pos.z() / (m_h * 2.0))
 		);
 	};
 
@@ -154,7 +154,7 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 					for (int j : splatted_grid[this_grid_hash]) {
 						// Check Euclidean distance is within the sphere enclosing
 						// the cell
-						if ((particles[j].x - particles[i].x).squaredNorm() < (m_h * 1.5 * m_h * 1.5)) {
+						if ((particles[j].x - particles[i].x).squaredNorm() < (m_h * 2.0 * m_h * 2.0)) {
 							neighbors[i].push_back(j);
 						}
 					}
@@ -317,49 +317,8 @@ void FluidSim::solveBoundaries() {
 		// 		// p.x(1) = m_res_y - m_h;
 		// 	}
 		// }
-
-
-		double x_coord = p_i.x.x();
-		double y_coord = p_i.x.y();
-		double z_coord = p_i.x.z();
-		// Yuto: i noticed that velocity overrides here have no effect since
-		// we set (overwrite) p_i.x after this function is called
-
-		// Left
-		if (x_coord <= m_h) {
-			p_i.v(0) *= -0.5f;
-			p_i.x(0) = m_h;
-		}
-
-		// Right
-		if (x_coord >= m_res_x - m_h) {
-			p_i.v(0) *= -0.5f;
-			p_i.x(0) = m_res_x - m_h;
-		}
-
-		// Bottom
-		if (y_coord <= m_h) {
-			p_i.v(1) *= -0.5f;
-			p_i.x(1) = m_h;
-		}
-
-		// Top
-		if (y_coord >= m_res_y - m_h) {
-			p_i.v(1) *= -0.5f;
-			p_i.x(1) = m_res_y - m_h;
-		}
-
-		// Back
-		if (z_coord <= m_h) {
-			p_i.v(2) *= -0.5f;
-			p_i.x(2) = m_h;
-		}
-
-		// Front
-		if (z_coord >= m_res_z - m_h) {
-			p_i.v(2) *= -0.5f;
-			p_i.x(2) = m_res_z - m_h;
-		}
+		p_i.x = p_i.x.cwiseMax(Eigen::Vector3d(m_h, m_h, m_h));
+		p_i.x = p_i.x.cwiseMin(Eigen::Vector3d(m_res_x - m_h, m_res_y - m_h, m_res_z - m_h));
 	}
 }
 
