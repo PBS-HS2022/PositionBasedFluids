@@ -23,6 +23,8 @@ public:
 	bool m_windOn;
 	bool m_macOn;
 
+	bool m_show3dPoints;
+
 	const vector<char const*> m_fields = {
 	   "Density", "Pressure", "Divergence", "Vorticity"
 	};
@@ -49,6 +51,9 @@ public:
 		m_macOn = p_fluidSim->getMacCormack();
 		m_selected_field = p_fluidSim->getField();
 		m_velocityOn = p_fluidSim->getVField();
+
+		m_show3dPoints = p_fluidSim->getShow3dPoints();
+
 		setSimulation(p_fluidSim);
 		setFastForward(true);
 		m_viewer.core.align_camera_center(p_fluidSim->getVertices(), p_fluidSim->getFaces());
@@ -68,6 +73,7 @@ public:
 		p_fluidSim->setKernelRadius(m_h);
 		p_fluidSim->setVisc(m_visc);
 		p_fluidSim->setRestDensity(m_rho0);
+		p_fluidSim->setShow3dPoints(m_show3dPoints);
 	}
 
 	virtual void clearSimulation() override {
@@ -98,6 +104,9 @@ public:
 			p_fluidSim->setWind(m_windOn);
 		if (ImGui::Checkbox("MacCormack", &m_macOn))
 			p_fluidSim->setMacCormack(m_macOn);
+		if (ImGui::Checkbox("Show points, not mesh (only 3D)", &m_show3dPoints)) {
+			p_fluidSim->updateRenderGeometry();
+		}
 	}
 };
 

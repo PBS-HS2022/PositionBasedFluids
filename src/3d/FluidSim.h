@@ -40,6 +40,8 @@ public:
 		m_windOn = false;
 		m_macOn = true;
 
+		m_show3dPoints = false;
+
 		// ++++++++++ SPH variables +++++++++++++++++++++++
 		m_NUM_PARTICLES = 250000;
 
@@ -84,9 +86,11 @@ public:
 		// Build the mesh at every timestep, since unlike the 2D variant where
 		// the mesh is always a constant grid (colored black or blue), 3D fluid
 		// meshes are constructed depending on the density at every frame.
-		p_density->buildMesh();
-		// Put the generated mesh into our local variables.
-		p_density->getMesh(m_renderV, m_renderF);
+		if (!m_show3dPoints) {
+			p_density->buildMesh();
+			// Put the generated mesh into our local variables.
+			p_density->getMesh(m_renderV, m_renderF);
+		}
 
 		if (m_field == 0) {
 			p_density->getColors(m_renderC);
@@ -117,8 +121,17 @@ public:
 	}
 
 	virtual void renderRenderGeometry(igl::opengl::glfw::Viewer& viewer) override {
-		viewer.data().set_mesh(m_renderV, m_renderF);
-		viewer.data().set_colors(m_renderC);
+		if (!m_show3dPoints) {
+			viewer.data().set_mesh(m_renderV, m_renderF);
+			viewer.data().set_colors(m_renderC);
+		} else {
+			Eigen::MatrixXd particlePos(particles.size(), 3);
+			for (int i = 0; i < particles.size(); i++) {
+				particlePos.row(i) = particles[i].x - Eigen::Vector3d(m_res_x / 2., 0, m_res_z / 2.);
+			}
+			viewer.data().point_size = 20.f;
+			viewer.data().add_points(particlePos, m_renderC);
+		}
  	}
 
 	virtual void exportObj() override {
@@ -152,6 +165,8 @@ public:
 	void setWind(bool w) { m_windOn = w; }
 	void setMacCormack(bool m) { m_macOn = m; }
 
+	void setShow3dPoints(bool b) { m_show3dPoints = b; }
+
 	void setNumParticles(int num) { m_NUM_PARTICLES = num; }
 	void setKernelRadius(float h) { m_h = h; }
 	void setVisc(float v) { m_visc_cons = v; }
@@ -170,6 +185,9 @@ public:
 	int getIteration() const { return m_iter; }
 	bool getWind() const { return m_windOn; }
 	bool getMacCormack() const { return m_macOn; }
+
+	bool getShow3dPoints() const { return m_show3dPoints; }
+
 	double getTimestep() const { return m_dt; }
 
 	int getNumParticles() const { return m_NUM_PARTICLES; }
@@ -192,6 +210,8 @@ private:
 	double m_vScale;
 	bool m_windOn;
 	bool m_macOn;
+	
+	bool m_show3dPoints;
 
 	float m_mass;
 	float m_k;
