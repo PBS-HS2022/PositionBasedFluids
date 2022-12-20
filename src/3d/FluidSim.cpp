@@ -175,7 +175,7 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 		// Initial values
 		float rho = 0.0f;
 		float sum_grad2 = 0.0f;
-		Eigen::Vector3d grad_i(0.0f, 0.0f, 0.0f);
+		Eigen::Vector3d grad_i = Eigen::Vector3d::Zero();
 
 		// Loop through neighbors
 		for (int neighbor_ix=0; neighbor_ix < (*neighbors)[i].size(); neighbor_ix++) {
@@ -190,7 +190,7 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 			}
 			// If distance is greater than kernel radius (h)
 			if (r > m_h) {
-				m_grads[neighbor_ix] = Eigen::Vector3d(0.0f, 0.0f, 0.0f);
+				m_grads[neighbor_ix] = Eigen::Vector3d::Zero();
 			}
 			else {
 				float r2 = r * r;
@@ -369,7 +369,7 @@ void FluidSim::solveBoundaries() {
 // =================================================
 void FluidSim::applyViscosity(std::vector<std::vector<int>> * neighbors, int i) {
 	if ((*neighbors)[i].size() == 0) return;
-	Eigen::Vector3d avg_vel = Eigen::Vector3d(0.0f, 0.0f, 0.0f);
+	Eigen::Vector3d avg_vel = Eigen::Vector3d::Zero();
 	for (int id : (*neighbors)[i]) {
 		avg_vel += particles[id].v;
 	}
@@ -460,7 +460,7 @@ void FluidSim::integrateSPH() {
 			// Apply viscosity tendency towards averaging over neighbours
 			applyViscosity(&neighbors, i);
 			// std::cout << "%: " << abs((int)p_i.x.x()) % m_res_x << " " << abs((int)p_i.x.y()) % m_res_y << std::endl;
-			p_density->set_m_x((int)particles[i].x.x(), (int)particles[i].x.y(), (int)particles[i].x.z());
+			p_density->set_m_x((int)particles[i].x.x() % m_res_x, (int)particles[i].x.y() % m_res_y, (int)particles[i].x.z() % m_res_z);
 		}
 	}
 }
