@@ -26,8 +26,9 @@ public:
 		m_please_die(false),
 		m_running(false),
 		m_started(false),
-		m_recording(false),
-		m_single_iteration(false) {}
+		m_isExportingObj(false),
+		m_single_iteration(false),
+		m_recording(false) {}
 
 	virtual ~Simulator() {
 		killSimulatorThread();
@@ -129,6 +130,9 @@ public:
 	// for infinite simulation
 	void setMaxSteps(int n = -1) { m_maxSteps = n; }
 
+	void setExportingObj(bool r) { m_isExportingObj = r; }
+	bool isExportingObj() const { return m_isExportingObj; }
+
 	void clearRecords() {
 		for (size_t i = 0; i < m_record.size(); i++) {
 			m_record[i] =
@@ -204,6 +208,9 @@ protected:
 				m_render_mutex.lock();
 				p_simulation->updateRenderGeometry();
 				m_render_mutex.unlock();
+				if (m_isExportingObj) {
+					p_simulation->exportObj();
+				}
 
 				high_resolution_clock::time_point end =
 					high_resolution_clock::now();
@@ -248,6 +255,7 @@ protected:
 	bool m_please_die;
 	bool m_running;
 	bool m_started;
+	bool m_isExportingObj;
 	bool m_single_iteration;
 	int m_maxTimePerStep;
 	int m_maxSteps = -1;  // max number of steps to perform, -1 for infinite
