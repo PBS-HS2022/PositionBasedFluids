@@ -39,7 +39,7 @@ public:
 		m_windOn = false;
 		m_macOn = true;
 
-		// ++++++++++ SPH variables +++++++++++++++++++++++
+		// ++++++++++ SPH / PBD variables +++++++++++++++++++++++
 		m_NUM_PARTICLES = 2500;
 
 		m_mass = 2.5f;
@@ -58,16 +58,10 @@ public:
 
 		m_grads = std::vector<Eigen::Vector2d>(m_NUM_PARTICLES, Eigen::Vector2d(0.0f, 0.0f));
 
-		// ++++++++++ SPH variables +++++++++++++++++++++++
+		// ++++++++++ SPH / PBD variables +++++++++++++++++++++++
 
 		p_density = new Grid2(m_res_x, m_res_y, m_dx);
-		p_pressure = new Grid2(m_res_x, m_res_y, m_dx);
-		p_divergence = new Grid2(m_res_x, m_res_y, m_dx);
-		p_vorticity = new Grid2(m_res_x, m_res_y, m_dx);
 		p_density->getMesh(m_renderV, m_renderF); // need to call once
-		
-		p_velocity = new MACGrid2(m_res_x, m_res_y, m_dx);
-		p_force = new MACGrid2(m_res_x, m_res_y, m_dx);
 
 		initSPH(0.45, 0.55, 0.7, 0.95);
 
@@ -78,59 +72,16 @@ public:
 		p_density->reset();
 		particles.clear();
 		initSPH(0.25, 0.75, 0.7, 0.95);
-		
-		// p_density->applySource(0.45, 0.55, 0.1, 0.15);
-		// p_density->applySource(0.45, 0.55, 0.7, 0.95);
-		// p_pressure->reset();
-		// p_divergence->reset();
-		// p_velocity->reset();
-		// p_force->reset();
 	}
 
 	virtual void updateRenderGeometry() override {
 		if (m_field == 0) {
 			p_density->getColors(m_renderC);
 		}
-		// else if (m_field == 1) {
-		// 	p_pressure->getColors(m_renderC, true);
-		// }
-		// else if (m_field == 2) {
-		// 	p_divergence->getColors(m_renderC, true);
-		// }
-		// else if (m_field == 3) {
-		// 	p_vorticity->getColors(m_renderC, true);
-		// }
-		
-		// if (m_velocityOn) {
-		// 	p_velocity->updateEdges(m_vScale);
-		// }
 	}
 
 	virtual bool advance() override {
-		// apply source in density field
-		// change here to modify source for fluid
-		// p_density->applySource(0.45, 0.55, 0.7, 0.95);
-
-		// // add in new forces
-		// addBuoyancy();
-		// addGravity();
-		// // if (m_windOn)
-		// // 	addWind();
-
-		// addForce();
-
-		// // remove divergence
-		// solvePressure();
-
-		// // advect everything
-		// advectValues();
-
-		// // reset forces
-		// p_force->reset();
-
-		// computePressureSPH();
-		// computeForcesSPH();
-		// solveFluids();
+		// Call the SPH / PBD integration
 		integrateSPH();
 
 		// advance m_time
@@ -149,168 +100,10 @@ public:
 			viewer.data().add_edges(p_velocity->s(), p_velocity->e(), Eigen::RowVector3d(0, 0, 0));
 			viewer.data().add_edges(p_velocity->vs(), p_velocity->ve(), p_velocity->vc());
 		}
-	}	
-
-#pragma region FluidSteps
-	void addBuoyancy() {
-		double scaling = 64.0 / m_res_x;
-
-		// add buoyancy
-		for (int i = 0; i < p_force->y().size(0); ++i) {
-			for (int j = 1; j < p_force->y().size(1) - 1; ++j) {
-				p_force->y()(i, j) += 0.1 * (p_density->x()(i, j - 1) + p_density->x()(i, j)) / 2.0 * scaling;
-			}
-		}
-	}
-
-	void addGravity() {
-		// add g
-		for (int i = 0; i < p_force->y().size(0); ++i) {
-			for (int j = 1; j < p_force->y().size(1) - 1; ++j) {
-				p_force->y()(i, j) -= 9.8;
-			}
-		}
-	}
-
-	void addWind() {
-		double scaling = 64.0 / m_res_x;
-
-		static double r = 0.0;
-		r += 1;
-
-		const double fx = 2e-2 * cos(5e-2 * r) * cos(3e-2 * r) * scaling;
-
-		// add wind
-		for (int i = 0; i < p_force->x().size(0); ++i) {
-			for (int j = 0; j < p_force->x().size(1); ++j) {
-				p_force->x()(i, j) += fx;
-			}
-		}
-	}
-
-	void addForce() {
-		for (int i = 0; i < p_velocity->x().size(0); ++i) {
-			for (int j = 0; j < p_velocity->x().size(1); ++j) {
-				p_velocity->x()(i, j) += m_dt * p_force->x()(i, j);
-			}
-		}
-
-		for (int i = 0; i < p_velocity->y().size(0); ++i) {
-			for (int j = 0; j < p_velocity->y().size(1); ++j) {
-				p_velocity->y()(i, j) += m_dt * p_force->y()(i, j);
-			}
-		}
-	}
-	
-	void solvePressure() {
-		// copy out the boundaries 
-		setNeumann();
-		setZero();
-
-		computeDivergence();
-
-		// solve Poisson equation
-		copyBorder();
-		solvePoisson();
-
-		correctVelocity();
-
-		computeVorticity();
-
-		// for debugging
-		computeDivergence();
-	}
-
-	void setNeumann() {
-		// x-velocity
-		Array2d& u = p_velocity->x();
-		int sx = u.size(0);
-		int sy = u.size(1);
-		for (int y = 0; y < sy; ++y) {
-			u(0, y) = u(2, y);
-			u(sx - 1, y) = u(sx - 3, y);
-		}
-
-		// y-velocity
-		Array2d& v = p_velocity->y();
-		sx = v.size(0);
-		sy = v.size(1);
-		for (int x = 0; x < sx; ++x) {
-			v(x, 0) = v(x, 2);
-			v(x, sy - 1) = v(x, sy - 3);
-		}
-	}
-
-	void setZero() {
-		// x-velocity
-		Array2d& u = p_velocity->x();
-		int sx = u.size(0);
-		int sy = u.size(1);
-		for (int x = 0; x < sx; ++x) {
-			u(x, 0) = 0;
-			u(x, sy - 1) = 0;
-		}
-
-		// y-velocity
-		Array2d& v = p_velocity->y();
-		sx = v.size(0);
-		sy = v.size(1);
-		for (int y = 0; y < sy; ++y) {
-			v(0, y) = 0;
-			v(sx - 1, y) = 0;
-		}
-	}
-
-	void computeDivergence() {
-		// calculate divergence
-		for (int y = 1; y < m_res_y - 1; ++y) {
-			for (int x = 1; x < m_res_x - 1; ++x) {
-				double dudx = (p_velocity->x()(x + 1, y) - p_velocity->x()(x, y)) * m_idx;
-				double dvdy = (p_velocity->y()(x, y + 1) - p_velocity->y()(x, y)) * m_idx;
-				p_divergence->x()(x, y) = dudx + dvdy;
-			}
-		}
-	}
-
-	void computeVorticity() {
-		// calculate vorticity
-		for (int y = 2; y < m_res_y - 2; ++y) {
-			for (int x = 2; x < m_res_x - 2; ++x) {
-				double dudy = (p_velocity->x()(x, y + 1) - p_velocity->x()(x, y - 1)) * m_idx * 0.5;
-				double dvdx = (p_velocity->y()(x + 1, y) - p_velocity->y()(x - 1, y)) * m_idx * 0.5;
-				p_vorticity->x()(x, y) = dvdx - dudy;
-			}
-		}
-	}
-
-	void copyBorder() {
-		Array2d& p = p_pressure->x();
-		int sx = p.size(0);
-		int sy = p.size(1);
-		for (int y = 0; y < sy; ++y) {
-			p(0, y) = p(1, y);
-			p(sx - 1, y) = p(sx - 2, y);
-		}
-		for (int x = 0; x < sx; ++x) {
-			p(x, 0) = p(x, 1);
-			p(x, sy - 1) = p(x, sy - 2);
-		}
 	}
 
 	virtual void exportObj() override {
 	}
-
-#pragma endregion FluidSteps
-
-#pragma region Exercise
-	void solvePoisson();
-	void correctVelocity();
-	void advectValues();
-	void advectDensitySL(const Array2d& u, const Array2d& v);
-	void advectVelocitySL(const Array2d& u, const Array2d& v);
-	void MacCormackUpdate(const Array2d& d, const Array2d& d_forward, const Array2d& u,  const Array2d& u_forward, const Array2d& v, const Array2d& v_forward);
-	void MacCormackClamp(const Array2d& d, const Array2d& d_forward, const Array2d& u,  const Array2d& u_forward, const Array2d& v, const Array2d& v_forward);
-#pragma endregion Exercise
 
 #pragma region SPH
 	void initSPH(double xmin, double xmax, double ymin, double ymax);
