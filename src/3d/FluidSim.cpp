@@ -5,9 +5,9 @@
 // ++++++++++++++ SPH FUNCTIONS ++++++++++++++++++++
 // +++++++++++++++++++++++++++++++++++++++++++++++++
 
-// =================================================
-// =========== Initialize SPH / PBD Particles ============
-// =================================================
+// =========================================================
+// ============= Initialize SPH / PBD Particles ============
+// =========================================================
 void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax) {
 	m_xmin = xmin;
 	m_xmax = xmax;
@@ -37,9 +37,10 @@ void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax, doubl
 }
 
 
-// =================================================
-// ==== Compute Densities and Pressures for SPH / PBD ====
-// =================================================
+// ===================================================
+// ===== Compute Densities and Pressures for SPH =====
+// ===================================================
+// * This function is only used for SPH.
 void FluidSim::computePressureSPH() {
 	float h2 = m_h * m_h;
 	for (auto &pi : particles) {
@@ -65,6 +66,7 @@ void FluidSim::computePressureSPH() {
 // =================================================
 // ============ Compute forces for SPH =============
 // =================================================
+// * This function is only used for SPH.
 void FluidSim::computeForcesSPH() {
 	for (auto &pi : particles) {
 		Eigen::Vector3d f_p(0.0f, 0.0f, 0.0f);
@@ -102,9 +104,10 @@ void FluidSim::computeForcesSPH() {
 // =============== Find Neighbors ==================
 // =================================================
 // Finds neighbors for all particles at the current time.
+// This is an implementation of Blazing-Fast Neighbor Searching with Spatial
+// Hashing, documented here:
+// https://matthias-research.github.io/pages/tenMinutePhysics/11-hashing.pdf
 std::vector<std::vector<int>> FluidSim::findNeighbors() {
-	// Implementation of Blazing-Fast Neighbor Searching with Spatial Hashing
-	// https://matthias-research.github.io/pages/tenMinutePhysics/11-hashing.pdf
 	auto get_grid_hash = [this](Eigen::Vector3i grid_pos) {
 		int h = (grid_pos.x() * 92837111) ^ (grid_pos.y() * 689287499) ^ (grid_pos.z() * 283923481);
 		// Add the following term for 3D:
@@ -113,8 +116,9 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 	};
 
 	auto get_nearest_grid = [this](Eigen::Vector3d particle_pos) {
-		// Use Vector3i for 3D:
-		// return Eigen::Vector3i((int)floor(particle_pos.x() / m_dx), (int)floor(particle_pos.y() / m_dx), (int)floor(particle_pos.z() / m_dx));
+		// Our grid is twice the size of the kernel size. This was chosen rather
+		// arbitrarily, since we filter particles in the same grid anyway by
+		// distance later on.
 		return Eigen::Vector3i(
 			(int)floor(particle_pos.x() / (m_h * 2.0)),
 			(int)floor(particle_pos.y() / (m_h * 2.0)),
@@ -167,9 +171,9 @@ std::vector<std::vector<int>> FluidSim::findNeighbors() {
 }
 
 
-// =================================================
-// ============== Solve Fluids =====================
-// =================================================
+// ====================================================
+// ================= Solve Fluids =====================
+// ====================================================
 void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 	for (int i=0; i < particles.size(); i++) {
 		// Initial values
@@ -213,8 +217,10 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 			continue;
 		}
 
+		// add a small offset to prevent division by zero
 		float lambda = -c / (sum_grad2 + 0.0001);
 
+		// apply the delta positions to the existing positions
 		for (int neighbor_ix=0; neighbor_ix < (*neighbors)[i].size(); neighbor_ix++) {
 			int id = (*neighbors)[i][neighbor_ix];
 
@@ -230,11 +236,10 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 }
 
 // =================================================
-// ============= Boundary Checks ===================
+// ============= Boundary Constraints ==============
 // =================================================
 void FluidSim::solveBoundaries() {
 	for (auto &p_i : particles) {
-		double offset = (double)rand() / (double)RAND_MAX * m_h;
 		double x_coord = p_i.x(0);
 		double y_coord = p_i.x(1);
 		double z_coord = p_i.x(2);
@@ -278,13 +283,13 @@ void FluidSim::solveBoundaries() {
 
 
 // =================================================
-// ============= Apply Viscosity ===================
+// =============== Apply Viscosity =================
 // =================================================
+// Compute the average velocity of neighboring particles, and apply deltas
+// to make the particular particle behave simliar to them, damped by the
+// viscosity constant. This implementation takes Schuermann's pbd-fluid-rs
+// as reference.
 void FluidSim::applyViscosity(std::vector<std::vector<int>> * neighbors, int i) {
-	// Compute the average velocity of neighboring particles, and apply deltas
-	// to make the particular particle behave simliar to them, damped by the
-	// viscosity constant. This implementation takes Schuermann's pbd-fluid-rs
-	// as reference.
 	if ((*neighbors)[i].size() == 0) return;
 	Eigen::Vector3d avg_vel = Eigen::Vector3d::Zero();
 	for (int id : (*neighbors)[i]) {

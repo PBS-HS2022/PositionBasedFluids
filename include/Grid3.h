@@ -16,6 +16,10 @@ class Grid3 {
 public:
 	Grid3() {}
 
+	// Simple drop-in replacement constructor grid2d with an added z dimension.
+	// This defaults to create_mesh = False, useful for representing 3D grids of
+	// other components than density, so that it doesn't take up additional
+	// memory for the grid at each timestep.
 	Grid3(int res_x, int res_y, int res_z, double dx) {
 		Grid3(res_x, res_y, res_z, dx, false);
 	}
@@ -102,6 +106,10 @@ public:
 	void buildMesh() {
 		if (!m_has_mesh) return;
 
+		// Call the IGL marching cubes algorithm, which generates vertices and
+		// faces based on values of a function at points on a grid. The isovalue
+		// argument controls the limit considered to be the surface of the mesh.
+		// The result is put in m_V and m_F.
 		igl::copyleft::marching_cubes(
 			m_x,
 			m_GV,
@@ -127,7 +135,10 @@ public:
 		ret_F = m_F;
 	}
 
-	// All parameters passed to this function should be within [0, 1]
+	// Add a fluid source at the specified location* within the initialised
+	// grid. The location argument passed to this function is linearly interpolated
+	// to fit within the complete resolution of the grid.
+	// * All parameters passed to this function should be within [0, 1]
 	void applySource(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax) {
 		if (!m_has_mesh) return;
 
@@ -145,6 +156,8 @@ public:
 		}
 	}
 
+	// Add a particle density to the specified coordinates, where values x, y, z
+	// are grid positions in range [0, res_x/y/z].
 	void set_m_x(int x, int y, int z) {
 		if (!m_has_mesh) return;
 
