@@ -317,8 +317,41 @@ void FluidSim::solveBoundaries() {
 		// 		// p.x(1) = m_res_y - m_h;
 		// 	}
 		// }
-		p_i.x = p_i.x.cwiseMax(Eigen::Vector3d(m_h, m_h, m_h));
-		p_i.x = p_i.x.cwiseMin(Eigen::Vector3d(m_res_x - m_h, m_res_y - m_h, m_res_z - m_h));
+		// Small offset to prevent build-up on corners
+		double offset = (double)rand() / (double)RAND_MAX * m_h;
+		double x_coord = p_i.x(0);
+		double y_coord = p_i.x(1);
+		double z_coord = p_i.x(2);
+
+		// Left
+		if (x_coord <= m_h) {
+			p_i.x(0) = offset;
+		}
+
+		// Right
+		if (x_coord >= m_res_x - m_h) {
+			p_i.x(0) = m_res_x - offset;
+		}
+
+		// Bottom
+		if (y_coord <= m_h) {
+			p_i.x(1) = m_h;
+		}
+
+		// Top
+		if (y_coord >= m_res_y - m_h) {
+			p_i.x(1) = m_res_y - m_h;
+		}
+
+		// Back
+		if (z_coord <= m_h) {
+			p_i.x(2) = offset;
+		}
+
+		// Front
+		if (z_coord >= m_res_z - m_h) {
+			p_i.x(2) = m_res_z - offset;
+		}
 	}
 }
 
@@ -409,8 +442,8 @@ void FluidSim::integrateSPH() {
 			double vel = v.norm();
 
 			// If particle moved way too fast in this sub-timestep, fix it
-			if (vel > 0.1) {
-				v *= 0.1 / vel;
+			if (vel > 0.4) {
+				v *= 0.4 / vel;
 				particles[i].x = prevPos[i] + v;
 			}
 
