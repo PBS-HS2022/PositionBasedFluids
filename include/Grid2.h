@@ -90,8 +90,8 @@ public:
 					}
 					else {
 						if (c == 0.5) {
-							C.row(i++) = Eigen::RowVector3d(0, 0, 255);
-							C.row(i++) = Eigen::RowVector3d(0, 0, 255);
+							C.row(i++) = Eigen::RowVector3d(0, 255, 255);
+							C.row(i++) = Eigen::RowVector3d(0, 255, 255);
 						}
 						else {
 							C.row(i++).setConstant(c);
