@@ -34,7 +34,7 @@ public:
 	FluidSim* p_fluidSim = NULL;
 
 	FluidGui() {
-		turnOffLight(); // no light for field visualization
+		// turnOffLight(); // no light for field visualization
 		orthoCam(); // orthographic camera
 
 		p_fluidSim = new FluidSim();

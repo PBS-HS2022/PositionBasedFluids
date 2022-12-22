@@ -6,7 +6,7 @@
 // +++++++++++++++++++++++++++++++++++++++++++++++++
 
 // =================================================
-// =========== Initialize SPH Particles ============
+// =========== Initialize SPH / PBD Particles ============
 // =================================================
 void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax) {
 	m_xmin = xmin;
@@ -15,22 +15,22 @@ void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax, doubl
 	m_ymax = ymax;
 	m_zmin = zmin;
 	m_zmax = zmax;
-	// for (float y = 16.0f; y < m_res_y - 16.0f * 2.0f; y += 16.0f) {
-	// 	for (float x = m_res_x / 4; x <= m_res_x / 2; x += 16.0f) {
+
+	// Initialise the particles in a vector, using the base positions specified
+	// in the arguments but adding some random jitter.
 	for (int z = (int)(zmin * m_res_z); z < (int)(xmax * m_res_z); z++) {
 		for (int y = (int)(ymin * m_res_y); y < (int)(ymax * m_res_y); y++) {
 			for (int x = (int)(xmin * m_res_x); x < (int)(xmax * m_res_x); x++) {
-				if (particles.size() < m_NUM_PARTICLES) {
-					float jitterX = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-					float jitterZ = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-					// no jitter in vertical direction: Y
-					Particle newParticle(x + jitterX, y, z + jitterZ);
-					particles.push_back(newParticle);
-					p_density->set_m_x(newParticle.x.x(), newParticle.x.y(), newParticle.x.z());
-				}
-				else {
+				if (particles.size() >= m_NUM_PARTICLES) {
 					return;
 				}
+				// Add jitter only in X and Z dimensions, not vertically.
+				// No particular reason here, but it just felt natural.
+				float jitterX = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+				float jitterZ = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+				Particle newParticle(x + jitterX, y, z + jitterZ);
+				particles.push_back(newParticle);
+				p_density->set_m_x(newParticle.x.x(), newParticle.x.y(), newParticle.x.z());
 			}
 		}
 	}
@@ -38,7 +38,7 @@ void FluidSim::initSPH(double xmin, double xmax, double ymin, double ymax, doubl
 
 
 // =================================================
-// ==== Compute Densities and Pressures for SPH ====
+// ==== Compute Densities and Pressures for SPH / PBD ====
 // =================================================
 void FluidSim::computePressureSPH() {
 	float h2 = m_h * m_h;
@@ -234,103 +234,24 @@ void FluidSim::solveFluids(std::vector<std::vector<int>> * neighbors) {
 // =================================================
 void FluidSim::solveBoundaries() {
 	for (auto &p_i : particles) {
-		// Clamp positions to edges if it goes beyond
-		// if (p_i.x(1) < 0.0f) {
-		// 	p_i.x(1) = 0.0f;
-		// }
-
-		// if (p_i.x(0) < 0.0f) p_i.x(0) = 0.0f;
-		// if (p_i.x(0) > m_res_x) p_i.x(0) = m_res_x;
-
-		// More boundary checks?
-		// const float DAMP = 0.5;
-
-		// int x_coord = (int)p_i.x.x();
-		// int y_coord = (int)p_i.x.y();
-
-		// Left & Right Walls
-		// if (p_i.v(0) != 0.0f) {
-		// 	// Left 
-		// 	if (x_coord < m_h) {
-		// 		float tbounce = (p_i.x(0) - m_h) / p_i.v(0);
-
-		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
-		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
-
-		// 		p_i.x(0) = 2 * m_h - p_i.x(0);
-		// 		p_i.v(0) = -p_i.v(0) * DAMP;
-		// 		p_i.v(1) *= DAMP;
-
-		// 		// p.v(0) *= DAMP;
-		// 		// p.x(0) = m_h;
-		// 	}
-		// }
-
-		// if (p_i.v(0) != 0.0f) {
-		// 	// Right
-		// 	if (x_coord > m_res_x - m_h) {
-		// 		float tbounce = (p_i.x(0) - m_res_x + m_h) / p_i.v(0);
-
-		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
-		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
-
-		// 		p_i.x(0) = 2*(m_res_x - m_h) - p_i.x(0);
-		// 		p_i.v(0) = -p_i.v(0) * DAMP;
-		// 		p_i.v(1) *= DAMP;
-
-		// 		// p.v(0) *= DAMP;
-		// 		// p.x(0) = m_res_x - m_h;
-		// 	}
-		// }	
-
-		// // Bottom and Top Boundaries
-		// if (p_i.v(1) != 0.0f) {
-		// 	// Bottom
-		// 	if (y_coord < m_h) {
-		// 		float tbounce = (p_i.x(1) - m_h) / p_i.v(1);
-
-		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
-		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
-
-		// 		p_i.x(1) = 2 * m_h - p_i.x(1);
-		// 		p_i.v(1) = -p_i.v(1) * DAMP;
-		// 		p_i.v(0) *= DAMP;
-
-		// 		// p.v(1) *= DAMP;
-		// 		// p.x(1) = m_h;
-		// 	}
-		// }
-
-		// if (p_i.v(1) != 0.0f) {
-		// 	// Top
-		// 	if (y_coord > m_res_y - m_h) {
-		// 		float tbounce = (p_i.x(1) - m_res_x + m_h) / p_i.v(1);
-
-		// 		p_i.x(0) -= p_i.v(0) * (1 - DAMP) * tbounce;
-		// 		p_i.x(1) -= p_i.v(1) * (1 - DAMP) * tbounce;
-
-		// 		p_i.x(1) = 2*(m_res_y - m_h) - p_i.x(1);
-		// 		p_i.v(1) = -p_i.v(1) * DAMP;
-		// 		p_i.v(0) *= DAMP;
-
-		// 		// p.v(1) *= DAMP;
-		// 		// p.x(1) = m_res_y - m_h;
-		// 	}
-		// }
-		// Small offset to prevent build-up on corners
 		double offset = (double)rand() / (double)RAND_MAX * m_h;
 		double x_coord = p_i.x(0);
 		double y_coord = p_i.x(1);
 		double z_coord = p_i.x(2);
+		// Small jitter to prevent build-up on corners. Only applies to X and Z
+		// dimensions (not vertical Y), since adding jitter vertically will
+		// prevent particles from actually stabilising on the ground.
+		float jitterX = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+		float jitterZ = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
 
 		// Left
 		if (x_coord <= m_h) {
-			p_i.x(0) = offset;
+			p_i.x(0) = m_h * jitterX;
 		}
 
 		// Right
 		if (x_coord >= m_res_x - m_h) {
-			p_i.x(0) = m_res_x - offset;
+			p_i.x(0) = m_res_x - m_h * jitterX;
 		}
 
 		// Bottom
@@ -345,12 +266,12 @@ void FluidSim::solveBoundaries() {
 
 		// Back
 		if (z_coord <= m_h) {
-			p_i.x(2) = offset;
+			p_i.x(2) = m_h * jitterZ;
 		}
 
 		// Front
 		if (z_coord >= m_res_z - m_h) {
-			p_i.x(2) = m_res_z - offset;
+			p_i.x(2) = m_res_z - m_h * jitterZ;
 		}
 	}
 }
@@ -360,6 +281,10 @@ void FluidSim::solveBoundaries() {
 // ============= Apply Viscosity ===================
 // =================================================
 void FluidSim::applyViscosity(std::vector<std::vector<int>> * neighbors, int i) {
+	// Compute the average velocity of neighboring particles, and apply deltas
+	// to make the particular particle behave simliar to them, damped by the
+	// viscosity constant. This implementation takes Schuermann's pbd-fluid-rs
+	// as reference.
 	if ((*neighbors)[i].size() == 0) return;
 	Eigen::Vector3d avg_vel = Eigen::Vector3d::Zero();
 	for (int id : (*neighbors)[i]) {
@@ -372,78 +297,51 @@ void FluidSim::applyViscosity(std::vector<std::vector<int>> * neighbors, int i) 
 
 
 // =================================================
-// ===== SPH Integration and boundary checks =======
+// ===== SPH / PBD Integration and boundary checks =======
 // =================================================
 void FluidSim::integrateSPH() {
-	// Array2d d_tmp(p_density->x());
 	p_density->reset();
 
-	// Values of C for each particle, calculated with equation 1 in PBF
-	// std::vector<float> density_constraints(particles.size());
-
-	// Values of lambda for each particle, calculated with equation 8 and 9 in PBF
-	// std::vector<float> lambda(particles.size());
-
-	// The change in position, for each particle
-	// std::vector<Eigen::Vector2d> delta_x(particles.size());
-
-	// Values of the new positions for each particle, to be compared with the current one
-	// std::vector<Eigen::Vector2d> new_x(particles.size());
-
-	// Wondering if for_each is better than an explicit for loop
-	// cout << "FIRST LOOP" << endl;
-	// for (int i = 0; i < particles.size(); i++) {
-	// 	Particle p_i = particles[i];
-
-	// 	// Symplectic euler step with damping
-	// 	p_i.v += m_dt * p_i.f / p_i.rho;
-	// 	p_i.x += m_dt * p_i.v;
-
-	// 	// cout << "Time: " << m_time << " p.f: " << p.f << " p.rho:" << p.rho << endl;
-	// 	// cout << "Time: " << m_time << " p.v: " << p.v << " p.x: " << p.x << endl;
-
-	// 	// Create the density constraint for each particle
-	// 	density_constraints[i] = (p_i.rho - m_rho0) - 1;
-	// }
-
-	// TODO : BOUNDARY CHECKING HERE
-
+	// Find neighbours first-thing. This 2D array of neighbours for each particle
+	// is rather large, and copying or recalculating this can take a while.
+	// Where possible, we will from here on use this vector by reference when
+	// passing to other functions to avoid copying.
 	std::vector<std::vector<int>> neighbors = findNeighbors();
+
+	// On each timestep, we'll run the simulation a number of times, each called
+	// a substep. The iteration count parameter in the GUI controls this.
 	int num_substeps = getIteration();
 	float dt = m_dt / num_substeps;
-	// cout << "CONSTRAINT LOOP" << endl;
+
 	// Iterate to solve the constraints
 	for (int iteration = 0; iteration < num_substeps; iteration++) {
-		//Euler step? Maybe...
+		// Perform a naive position update first (Euler step), which we will
+		// correct later.
 		std::vector<Eigen::Vector3d> prevPos(m_NUM_PARTICLES);
 		for (int i = 0; i < particles.size(); i++) {
-			// Particle p_i = particles[i];
-
-			// Symplectic euler step with damping
+			// Symplectic euler step
 			prevPos[i] = particles[i].x;
-			// cout << "BEFORE: velocity: " << p_i.v << " -> position: " << p_i.x << " -> prevPos: " << prevPos[i] << endl;
 			particles[i].v += dt * m_G;
-			// particles[i].v += dt * particles[i].f / particles[i].rho;
 			particles[i].x += dt * particles[i].v;
-			// cout << "AFTER: velocity: " << p_i.v << " -> position: " << p_i.x << " -> prevPos: " << prevPos[i] << endl;
 		}
 
-		// Solve fluids here
+		// First solve the fluid behaviour constraints
 		solveFluids(&neighbors);
+		// Then solve boundary constraints hitting walls. We do this after the
+		// fluid one, since the solveFluids function can result in out-of-bounds
+		// positions that cause issues when calling set_m_x later.
 		solveBoundaries();
 
 		// Fix position movements that would be too fast of a velocity, and
 		// derive velocities for the next step
 		for (int i=0; i < particles.size(); i++) {
-			// Particle p_i = particles[i];
-			// cout << "Previous position: " << prevPos[i] << endl;
-			// cout << "Current Position: " << particles[i].x << endl;
 			Eigen::Vector3d v = particles[i].x - prevPos[i];
 			double vel = v.norm();
 
-			// If particle moved way too fast in this sub-timestep, fix it
-			if (vel > 0.4) {
-				v *= 0.4 / vel;
+			// If particle moved way too fast in this sub-timestep, fix it. This
+			// limit is chosen rather arbitrarily.
+			if (vel > 0.2) {
+				v *= 0.2 / vel;
 				particles[i].x = prevPos[i] + v;
 			}
 
@@ -451,7 +349,10 @@ void FluidSim::integrateSPH() {
 
 			// Apply viscosity tendency towards averaging over neighbours
 			applyViscosity(&neighbors, i);
-			// std::cout << "%: " << abs((int)p_i.x.x()) % m_res_x << " " << abs((int)p_i.x.y()) % m_res_y << std::endl;
+
+			// Update the density grid, which controls the rendering. We take
+			// the modulus for the resolution, to prevent any out-of-bounds
+			// grid access.
 			p_density->set_m_x((int)particles[i].x.x() % m_res_x, (int)particles[i].x.y() % m_res_y, (int)particles[i].x.z() % m_res_z);
 		}
 	}

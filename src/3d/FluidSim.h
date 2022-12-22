@@ -42,7 +42,7 @@ public:
 
 		m_show3dPoints = false;
 
-		// ++++++++++ SPH variables +++++++++++++++++++++++
+		// ++++++++++ SPH / PBD variables +++++++++++++++++++++++
 		m_NUM_PARTICLES = 250000;
 
 		m_mass = 2.5f;
@@ -51,7 +51,8 @@ public:
 		m_rho0 = 0.0001f;
 		m_visc_cons = 0.f;
 
-		// TODO: do these need to account for z?
+		// Commented alternatives for kernels were seen in some reference
+		// implementations of PBD.
 		// m_POLY6 = 315.0f / (64.0f * M_PI * pow(m_h, 9.0f));
 		m_POLY6 = 4.f / (M_PI * pow(m_h, 8.f));
 		// m_SPIKY_GRAD = 45.0f / (M_PI * pow(m_h, 6.0f));
@@ -65,9 +66,6 @@ public:
 		// ++++++++++ SPH variables +++++++++++++++++++++++
 
 		p_density = new Grid3(m_res_x, m_res_y, m_res_z, m_dx, true);
-		p_pressure = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
-		p_divergence = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
-		p_vorticity = new Grid3(m_res_x, m_res_y, m_res_z, m_dx);
 
 		// reset() calls resetMembers() after setting timestamp to 0.
 		reset();
@@ -82,10 +80,16 @@ public:
 		initSPH(0.45, 0.55, 0.7, 0.95, 0.45, 0.55);
 	}
 
+	// This function is called by the main functions on every timestep to update
+	// any meshes before calling renderRenderGeometry().
 	virtual void updateRenderGeometry() override {
-		// Build the mesh at every timestep, since unlike the 2D variant where
+		// We build the mesh at every timestep, since unlike the 2D variant where
 		// the mesh is always a constant grid (colored black or blue), 3D fluid
 		// meshes are constructed depending on the density at every frame.
+
+		// Optionally, we can use 3D point annotations included as a feature in
+		// libigl, which is cheaper to render (no need for marching cubes), but
+		// has some weird behaviour when zooming in.
 		if (!m_show3dPoints) {
 			p_density->buildMesh();
 			// Put the generated mesh into our local variables.
@@ -95,22 +99,10 @@ public:
 		if (m_field == 0) {
 			p_density->getColors(m_renderC);
 		}
-		// else if (m_field == 1) {
-		// 	p_pressure->getColors(m_renderC, true);
-		// }
-		// else if (m_field == 2) {
-		// 	p_divergence->getColors(m_renderC, true);
-		// }
-		// else if (m_field == 3) {
-		// 	p_vorticity->getColors(m_renderC, true);
-		// }
-		
 	}
 
+	// Called on every timestep to perform the simulation advancement.
 	virtual bool advance() override {
-		// computePressureSPH();
-		// computeForcesSPH();
-		// solveFluids();
 		integrateSPH();
 
 		// advance m_time
@@ -120,6 +112,10 @@ public:
 		return false;
 	}
 
+	// Called to actual perform the rendering at each frame. Heavy computation
+	// shouldn't happen here, so we just render the mesh we generated in the
+	// updateRenderGeometry function, or alternatively (if the 3D point annotation
+	// method is used,) just show particle points.
 	virtual void renderRenderGeometry(igl::opengl::glfw::Viewer& viewer) override {
 		if (!m_show3dPoints) {
 			viewer.data().set_mesh(m_renderV, m_renderF);
@@ -134,6 +130,7 @@ public:
 		}
  	}
 
+	// Called for each frame during the "export object files" button is on.
 	virtual void exportObj() override {
 		// We write to a sequence of object files that can be loaded in Blender
 		// I had no idea how to do an sprintf-like thing in c++, so here's some
@@ -210,7 +207,7 @@ private:
 	double m_vScale;
 	bool m_windOn;
 	bool m_macOn;
-	
+
 	bool m_show3dPoints;
 
 	float m_mass;
@@ -228,12 +225,9 @@ private:
 	std::vector<Eigen::Vector3d> m_grads;
 
 	Grid3* p_density;
-	Grid3* p_pressure;
-	Grid3* p_divergence;
-	Grid3* p_vorticity;
 
-	Eigen::MatrixXd m_renderV; // vertex positions, 
-	Eigen::MatrixXi m_renderF; // face indices 
+	Eigen::MatrixXd m_renderV; // vertex positions,
+	Eigen::MatrixXi m_renderF; // face indices
 	Eigen::MatrixXd m_renderC; // face (or vertex) colors for rendering
 
 	vector<Particle> particles;
@@ -243,6 +237,4 @@ private:
 	double m_ymax;
 	double m_zmin;
 	double m_zmax;
-
-	//shared_ptr<ParticlesData> m_pParticleData;
 };
