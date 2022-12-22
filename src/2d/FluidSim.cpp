@@ -55,6 +55,50 @@ void FluidSim::computePressureSPH() {
 	}
 }
 
+// ================================================================
+// ==== Compute Densities and Pressures for Incompressible SPH ====
+// ================================================================
+void FluidSim::computePressurePCISPH() {
+	m_rho_err.clear();
+	int iter(0);
+	float avg_rho_err(1.0f);
+	float h2 = m_h * m_h;
+
+	// Loop until convergeance
+	do {
+		// Copy over the simulation to step into the future
+		FluidSim copy(*this);
+		// Predict values from time t+1
+		copy.predict();
+		int i(0);
+
+		for (auto &pi : particles) {
+			pi.rho = 0.0f;
+
+			for (auto &pj : particles) {
+				Eigen::Vector2d r_ij = pj.x - pi.x;
+				float r2 = r_ij.squaredNorm();
+
+				if (r2 < h2) {
+					pi.rho += m_mass * m_POLY6 * pow(h2 - r2, 3.0f);
+				}
+			}
+
+			// pi.rho *= 1000.0f;
+			// Compute Beta factor for density error affect
+			float beta = (m_dt * m_dt) * (m_mass * m_mass) * (2 / (m_rho0 * m_rho0));
+			//TODO: compute delta as -1/(beta * (-sum(nablaWij) dot sum(nablaWij) - sum(nablaWij dot nablaWij)))
+			float delta = -1/(beta * (-m_SPIKY_GRAD * m_SPIKY_GRAD - m_visc_cons));
+			//pi.p = std::max(m_k * (((float)pow(pi.rho, 7) / (float)pow(m_rho0, 7)) - 1), 0.0f);
+			float ptild = delta * m_rho_err[i++];
+			pi.p += ptild;//std::max(m_k * (pi.rho - m_rho0), 0.0f);
+			// pi.p = m_k * (pi.rho - m_rho0);
+		}
+		// Compute the current average rho_err
+		avg_rho_err = std::accumulate(m_rho_err.begin(), m_rho_err.end(), 0.0) / m_rho_err.size();
+	} while(avg_rho_err > m_eta || iter++ < m_min_iterations);
+}
+
 // =================================================
 // ============ Compute forces for SPH =============
 // =================================================
