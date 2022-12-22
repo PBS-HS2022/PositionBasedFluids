@@ -48,6 +48,10 @@ public:
 		m_rho0 = 0.3f;
 		m_visc_cons = 0.f;
 
+		m_eta = 0.01f; // 1%
+		m_min_iterations = 3; // idfk
+		m_rho_err = std::vector<float>(m_NUM_PARTICLES);
+
 		// m_POLY6 = 315.0f / (64.0f * M_PI * pow(m_h, 9.0f));
 		m_POLY6 = 4.f / (M_PI * pow(m_h, 8.f));
 		// m_SPIKY_GRAD = 45.0f / (M_PI * pow(m_h, 6.0f));
@@ -91,6 +95,19 @@ public:
 		return false;
 	}
 
+	// Used for PCISPH attempt (not used for PBD anymore)
+	bool predict() {
+		computePressureSPH();
+		computeForcesSPH();
+		integrateSPH();
+
+		// advance m_time
+		m_time += m_dt;
+		m_step++;
+
+		return false;
+	}
+
 	virtual void renderRenderGeometry(
 		igl::opengl::glfw::Viewer& viewer) override {
 		viewer.data().set_mesh(m_renderV, m_renderF);
@@ -110,6 +127,7 @@ public:
 	std::vector<std::vector<int>> findNeighbors();
 	void integrateSPH();
 	void computePressureSPH();
+	void computePressurePCISPH();
 	void computeForcesSPH();
 	void solveFluids(std::vector<std::vector<int>> * neighbors);
 	void solveBoundaries();
@@ -188,6 +206,10 @@ private:
 	Grid2* p_vorticity;
 	MACGrid2* p_velocity;
 	MACGrid2* p_force;
+
+	float m_eta; // Density converging threshold for Incompressibility
+	int m_min_iterations; // Number of iterations before considering a convergeance
+	std::vector<float> m_rho_err; // For density prediction
 
 	Eigen::MatrixXd m_renderV; // vertex positions, 
 	Eigen::MatrixXi m_renderF; // face indices 
